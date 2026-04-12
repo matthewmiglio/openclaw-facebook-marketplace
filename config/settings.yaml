@@ -1,0 +1,11 @@
+model: mistral
+
+# Pacing — random delay range (seconds) between browser actions
+delay_min: 1.0
+delay_max: 3.0
+
+# Max listings to process per prompt
+max_listings: 30
+
+# Max scrolls when loading search results
+max_scrolls: 15
