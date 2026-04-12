@@ -23,13 +23,20 @@ agent: Searching... found 23 results → filtered to 15 → scored → messaged 
          ┌─────────▼──────────┐
          │   Playwright       │  ← Real Chromium browser
          │  (search, scroll,  │     with your FB session
-         │   extract DOM)     │
+         │   extract DOM +    │
+         │   screenshot imgs) │
+         └─────────┬──────────┘
+                   │
+         ┌─────────▼──────────┐
+         │   Vision           │  ← Moondream via Ollama
+         │  (identify what's  │     (local vision model)
+         │   in the photos)   │
          └─────────┬──────────┘
                    │
          ┌─────────▼──────────┐
          │   Scorer           │  ← Mistral via Ollama
-         │  (rank listings,   │
-         │   filter junk)     │
+         │  (rank listings,   │     uses text + image
+         │   filter junk)     │     descriptions
          └─────────┬──────────┘
                    │
          ┌─────────▼──────────┐
@@ -47,7 +54,8 @@ agent: Searching... found 23 results → filtered to 15 → scored → messaged 
 
 | Layer | Tool |
 |---|---|
-| LLM | Ollama + Mistral (local) |
+| Text LLM | Ollama + Mistral (local) |
+| Vision LLM | Ollama + Moondream (local) |
 | Browser | Playwright (Chromium) |
 | Orchestrator | Python |
 | Storage | SQLite |
@@ -57,6 +65,7 @@ agent: Searching... found 23 results → filtered to 15 → scored → messaged 
 1. **Install Ollama** — https://ollama.com, then:
    ```
    ollama pull mistral
+   ollama pull moondream
    ```
 
 2. **Install Python deps:**

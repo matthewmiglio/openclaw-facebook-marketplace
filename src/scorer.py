@@ -17,21 +17,29 @@ HARD RULES — these always result in pass: false:
 - If the listing price is $0 or says "trade only" or "free", FAIL — these are not real sales.
 - If the title/description clearly does not match the product the buyer wants, FAIL.
 - If the buyer specified exclusions, and the listing matches an exclusion, FAIL.
+- If image descriptions are provided and they show a DIFFERENT product than what the title claims, FAIL. For example, if the title says "iPhone 14" but the images show phone cases, FAIL.
 
 Scoring guidelines (only for listings that pass the hard rules):
 - Well under budget = higher score
 - Exact product match = higher score
 - Good condition = higher score
+- Images match the title/description = higher score
 - Signs of scam (too good to be true, stock photos, vague description) = lower score or FAIL
+- Images show something different than described = lower score or FAIL
 """
 
 
-def score_listing(listing: dict, criteria: dict, model: str = "mistral") -> dict:
+def score_listing(listing: dict, criteria: dict, model: str = "mistral", image_descriptions: list[str] = None) -> dict:
     title = listing.get('title', 'unknown')
     price = listing.get('price', 'unknown')
     product = criteria.get('product')
     max_price = criteria.get('max_price', 'any')
     exclusions = criteria.get('exclusions')
+
+    image_section = "No images available"
+    if image_descriptions:
+        image_lines = [f"  Image {i+1}: {desc}" for i, desc in enumerate(image_descriptions)]
+        image_section = "\n".join(image_lines)
 
     prompt = f"""Buyer wants: {product}
 Max price: ${max_price}
@@ -44,6 +52,9 @@ Price: ${price}
 Description: {listing.get('description', 'none')}
 Location: {listing.get('location', 'unknown')}
 Condition: {listing.get('condition', 'unknown')}
+
+What the listing images show:
+{image_section}
 """
 
     safe_title = title.encode("ascii", errors="replace").decode("ascii")

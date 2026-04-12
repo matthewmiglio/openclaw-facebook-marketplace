@@ -1,6 +1,7 @@
 import os
 import asyncio
 import random
+import tempfile
 from playwright.async_api import async_playwright, Page, BrowserContext
 
 PROFILE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "browser_profile")
@@ -174,7 +175,60 @@ async def extract_listing_data(page: Page) -> dict:
     }
 
 
-async def send_marketplace_message(page: Page, message: str):
+async def extract_listing_images(page: Page, max_images: int = 5) -> list[str]:
+    """Screenshot listing product photos from the carousel. Returns list of temp file paths."""
+    print(f"  [images] Extracting listing images...")
+
+    # Facebook listing images are large <img> tags inside the main content area.
+    # They sit inside the photo carousel/gallery section.
+    img_elements = await page.query_selector_all('div[role="main"] img')
+
+    # Filter to actual product photos: large images, not profile pics or icons
+    photo_paths = []
+    for img in img_elements:
+        if len(photo_paths) >= max_images:
+            break
+        try:
+            box = await img.bounding_box()
+            if not box or box["width"] < 200 or box["height"] < 200:
+                continue
+            # Skip if it's not visible
+            if not await img.is_visible():
+                continue
+
+            # Screenshot this image element to a temp file
+            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+            tmp.close()
+            await img.screenshot(path=tmp.name)
+            photo_paths.append(tmp.name)
+        except Exception:
+            continue
+
+    print(f"  [images] Captured {len(photo_paths)} product photos")
+    return photo_paths
+
+
+async def check_rate_limit_popup(page: Page) -> bool:
+    """Check if Facebook's 'You've reached the messaging limit' popup appeared.
+
+    Returns True if the rate-limit popup is detected (and dismisses it).
+    """
+    try:
+        popup = await page.query_selector('text="You\'ve reached the messaging limit"')
+        if popup and await popup.is_visible():
+            print("  [msg] RATE LIMIT DETECTED — Facebook messaging limit reached")
+            # Dismiss the popup by clicking OK
+            ok_button = await page.query_selector('div[aria-label="OK"]')
+            if ok_button and await ok_button.is_visible():
+                await ok_button.click()
+                await human_delay(1, 2)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+async def send_marketplace_message(page: Page, message: str) -> str:
     """Click the Message button on a listing page, which opens a dialog, then type and send.
 
     Facebook's flow:
@@ -182,6 +236,8 @@ async def send_marketplace_message(page: Page, message: str):
     2. Clicking it opens a dialog (div[role="dialog"]) with the message composer
     3. Dialog has a textarea for the message
     4. Dialog has a "Send" button (div[aria-label^="Send message"])
+
+    Returns: "sent", "failed", or "rate_limited"
     """
     print("  [msg] Looking for Message button on listing page...")
 
@@ -192,12 +248,12 @@ async def send_marketplace_message(page: Page, message: str):
 
     if not msg_button:
         print("  [msg] No Message button found on page")
-        return False
+        return "failed"
 
     is_visible = await msg_button.is_visible()
     if not is_visible:
         print("  [msg] Message button found but not visible")
-        return False
+        return "failed"
 
     print("  [msg] Clicking Message button...")
     await msg_button.click()
@@ -208,8 +264,11 @@ async def send_marketplace_message(page: Page, message: str):
     try:
         dialog = await page.wait_for_selector('div[role="dialog"]', timeout=10000)
     except Exception:
+        # The rate-limit popup can appear instead of the message dialog
+        if await check_rate_limit_popup(page):
+            return "rate_limited"
         print("  [msg] Message dialog did not appear")
-        return False
+        return "failed"
 
     print("  [msg] Dialog opened")
 
@@ -217,7 +276,7 @@ async def send_marketplace_message(page: Page, message: str):
     textarea = await dialog.query_selector('textarea')
     if not textarea:
         print("  [msg] No textarea found in dialog")
-        return False
+        return "failed"
 
     is_visible = await textarea.is_visible()
     print(f"  [msg] Found textarea in dialog (visible={is_visible})")
@@ -234,7 +293,7 @@ async def send_marketplace_message(page: Page, message: str):
 
     if not is_visible:
         print("  [msg] No visible textarea in dialog")
-        return False
+        return "failed"
 
     # Clear any pre-filled text and type our message
     await textarea.click()
@@ -256,12 +315,15 @@ async def send_marketplace_message(page: Page, message: str):
         print("  [msg] Clicking Send button...")
         await send_button.click()
         await human_delay(1, 2)
-        print("  [msg] Message sent!")
-        return True
     else:
         # Fallback: press Enter in the textarea
         print("  [msg] No Send button found, pressing Enter...")
         await textarea.press("Enter")
         await human_delay(1, 2)
-        print("  [msg] Enter pressed")
-        return True
+
+    # Check if the rate-limit popup appeared after sending
+    if await check_rate_limit_popup(page):
+        return "rate_limited"
+
+    print("  [msg] Message sent!")
+    return "sent"

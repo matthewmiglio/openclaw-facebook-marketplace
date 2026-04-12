@@ -9,14 +9,25 @@ def safe_print(text: str):
         print(text.encode("ascii", errors="replace").decode("ascii"))
 
 
-SYSTEM_PROMPT = """You are writing a short Facebook Marketplace message to a seller on behalf of a buyer.
-Keep it casual, friendly, and brief (1-3 sentences max).
-Do NOT sound robotic or like a template. Sound like a real person.
-Do NOT use emojis.
+SYSTEM_PROMPT = """Write a Facebook Marketplace message from a buyer to a seller.
 
-You will be given:
-- The listing title and price
-- What the buyer wants to communicate
+Rules:
+- 1-2 sentences MAX. Super short.
+- Sound like a normal person texting, not writing an email.
+- NO greetings like "Hope this finds you well" or "Hello there"
+- NO sign-offs like "Best regards", "Thanks!", "Looking forward to hearing from you"
+- NO placeholders like [Your Name] — never sign the message
+- NO emojis
+- Just get to the point like a real person would in a chat message
+
+Good examples:
+- "hey is this still available? can you do $30?"
+- "interested in this, is it unlocked?"
+- "still have this? id grab it today if so"
+
+Bad examples (DO NOT write like this):
+- "Hi there! I hope this message finds you well. I noticed your listing..."
+- "Hello, I'm interested in purchasing... Best regards, [Your Name]"
 
 Write ONLY the message text, nothing else.
 """
@@ -48,5 +59,12 @@ Buyer wants to say: {message_intent}
     safe_print(f"  [messenger] Raw output: {raw}")
 
     msg = raw.strip().strip('"')
+
+    # Strip any placeholder sign-offs the model might sneak in
+    import re
+    msg = re.sub(r'\n*\s*(Best|Regards|Thanks|Cheers|Sincerely|Looking forward)[,!]?\s*\n*\s*\[?Your Name\]?\s*$', '', msg, flags=re.IGNORECASE).strip()
+    msg = re.sub(r'\[Your Name\]', '', msg).strip()
+    msg = re.sub(r'\n{2,}', '\n', msg).strip()
+
     safe_print(f"  [messenger] Final message: \"{msg}\"")
     return msg
