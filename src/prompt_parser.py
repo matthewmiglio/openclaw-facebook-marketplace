@@ -1,3 +1,9 @@
+"""Natural-language prompt parser that converts user requests into structured intents.
+
+Uses a local Ollama model to extract fields like product, price range, location,
+desired action (search / message / both), and exclusions from free-form text.
+"""
+
 import json
 import time
 import ollama
@@ -32,6 +38,16 @@ User: "find 4 Nintendo Switch consoles under $150, skip anything that looks like
 
 
 def parse_prompt(user_prompt: str, model: str = "mistral") -> dict:
+    """Convert a free-form user request into a structured intent dict via Ollama.
+
+    Args:
+        user_prompt: Raw natural-language request from the user.
+        model: Ollama model name to use for parsing.
+
+    Returns:
+        Dict with keys: product, max_price, min_price, location, radius_miles,
+        quantity, action, message_intent, condition, exclusions.
+    """
     print(f"  [parser] Sending to {model}...")
     print(f"  [parser] Prompt: \"{user_prompt}\"")
     t0 = time.time()

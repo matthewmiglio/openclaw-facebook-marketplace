@@ -1,3 +1,9 @@
+"""SQLite persistence layer for listings, messages, and agent sessions.
+
+All data is stored in ``data/listings.db`` relative to the project root.
+Tables are created automatically on first access via :func:`get_db`.
+"""
+
 import sqlite3
 import os
 from datetime import datetime
@@ -6,6 +12,7 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "listings.db")
 
 
 def get_db():
+    """Open (or create) the SQLite database and return a connection with WAL mode enabled."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -15,6 +22,7 @@ def get_db():
 
 
 def _ensure_tables(conn):
+    """Create the listings, messages, and sessions tables if they don't already exist."""
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS listings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +60,7 @@ def _ensure_tables(conn):
 
 
 def save_listing(conn, listing: dict) -> int:
+    """Insert or update a listing row. Returns the row ID."""
     cur = conn.execute("""
         INSERT INTO listings (listing_url, title, price, seller, location, condition, description, score, score_reasoning, status)
         VALUES (:listing_url, :title, :price, :seller, :location, :condition, :description, :score, :score_reasoning, :status)
@@ -66,6 +75,7 @@ def save_listing(conn, listing: dict) -> int:
 
 
 def save_message(conn, listing_id: int, message_text: str):
+    """Record a message that was sent to a listing's seller."""
     conn.execute("""
         INSERT INTO messages (listing_id, message_text)
         VALUES (?, ?)
@@ -74,6 +84,7 @@ def save_message(conn, listing_id: int, message_text: str):
 
 
 def save_session(conn, prompt: str, parsed_intent: str, summary: str):
+    """Log an agent run (original prompt, parsed intent JSON, and outcome summary)."""
     conn.execute("""
         INSERT INTO sessions (prompt, parsed_intent, summary)
         VALUES (?, ?, ?)
@@ -82,4 +93,5 @@ def save_session(conn, prompt: str, parsed_intent: str, summary: str):
 
 
 def get_listings_by_status(conn, status: str):
+    """Return all listing rows matching the given status (e.g. 'found', 'messaged', 'skipped')."""
     return conn.execute("SELECT * FROM listings WHERE status = ?", (status,)).fetchall()

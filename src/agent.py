@@ -1,3 +1,10 @@
+"""Top-level agent orchestrator that ties all modules together.
+
+Flow: parse user prompt -> search Marketplace -> extract & photograph each
+listing -> score with vision + LLM -> optionally message sellers -> persist
+results to SQLite and print a summary.
+"""
+
 import asyncio
 import json
 import random
@@ -19,15 +26,30 @@ def safe_print(text: str):
 
 
 def log(msg: str):
+    """Print an indented agent status message."""
     safe_print(f"  >> {msg}")
 
 
 def timestamp():
+    """Return the current wall-clock time as HH:MM:SS for log lines."""
     return time.strftime("%H:%M:%S")
 
 
 async def run_agent(user_prompt: str, model: str = "mistral"):
-    """Main agent loop: parse prompt -> search -> extract -> score -> message -> report."""
+    """Run the full agent pipeline for a single user request.
+
+    Steps:
+        1. Parse the natural-language prompt into a structured intent.
+        2. Launch the browser and search Facebook Marketplace.
+        3. Scroll to collect listing links.
+        4. Visit each listing — extract data, screenshot photos, run vision, score.
+        5. Optionally compose and send a message to passing listings.
+        6. Print a summary and persist everything to SQLite.
+
+    Args:
+        user_prompt: The raw request string from the user.
+        model: Ollama model name used by the parser, scorer, and messenger.
+    """
     run_start = time.time()
     print(f"\n{'='*60}")
     print(f"[{timestamp()}] Agent started")

@@ -1,3 +1,10 @@
+"""Playwright-based browser automation for Facebook Marketplace.
+
+Handles launching a persistent Chromium session (preserving Facebook login),
+searching for listings, extracting listing data and images, and sending
+messages to sellers. Uses randomized delays to mimic human behaviour.
+"""
+
 import os
 import asyncio
 import random

@@ -1,3 +1,11 @@
+"""Entry point for the OpenClaw Facebook Marketplace agent.
+
+Supports three modes:
+  - ``python main.py login``        — open a browser for manual Facebook login
+  - ``python main.py <prompt>``     — run a one-shot agent command
+  - ``python main.py``              — interactive REPL loop
+"""
+
 import asyncio
 import sys
 from agent import run_agent
@@ -16,6 +24,7 @@ Type your request, or 'quit' to exit.
 
 
 def main():
+    """Parse CLI args and run the appropriate mode (login / one-shot / interactive REPL)."""
     model = "mistral"
 
     # Login mode: open browser for manual FB authentication

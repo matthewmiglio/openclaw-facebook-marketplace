@@ -47,6 +47,7 @@ JS_INSPECT = """() => {
 
 
 async def main():
+    """Navigate to a sample listing and dump message-related DOM elements for debugging."""
     pw, context, page = await launch_browser(headless=False)
 
     # Navigate to a known listing

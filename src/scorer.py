@@ -1,3 +1,11 @@
+"""Listing quality scorer that decides which Marketplace results are worth pursuing.
+
+Sends listing data (title, price, description, image descriptions) plus the
+buyer's criteria to a local Ollama model, which returns a 0-100 score and a
+pass/fail verdict. Hard price and scam rules are enforced in code after the
+model responds.
+"""
+
 import json
 import time
 import ollama
@@ -30,6 +38,18 @@ Scoring guidelines (only for listings that pass the hard rules):
 
 
 def score_listing(listing: dict, criteria: dict, model: str = "mistral", image_descriptions: list[str] = None) -> dict:
+    """Score a listing against the buyer's criteria and return a pass/fail verdict.
+
+    Args:
+        listing: Extracted listing data (title, price, description, etc.).
+        criteria: Parsed intent dict from the prompt parser.
+        model: Ollama model name for evaluation.
+        image_descriptions: Optional text descriptions of listing photos from the vision module.
+
+    Returns:
+        Dict with 'score' (0-100), 'pass' (bool), and 'reasoning' (str).
+        Hard price rules are enforced in code after the model responds.
+    """
     title = listing.get('title', 'unknown')
     price = listing.get('price', 'unknown')
     product = criteria.get('product')

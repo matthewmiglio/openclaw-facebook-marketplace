@@ -1,3 +1,10 @@
+"""Vision module for analysing listing product photos.
+
+Uses the Moondream model (via Ollama) to generate text descriptions of
+listing images, which are then fed into the scorer to catch mismatches
+between what a listing claims and what the photos actually show.
+"""
+
 import os
 import time
 import ollama
