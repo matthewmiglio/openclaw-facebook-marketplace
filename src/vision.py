@@ -54,7 +54,8 @@ def describe_listing_images(image_paths: list[str]) -> list[str]:
             desc = result_holder["desc"]
             img_elapsed = time.time() - img_t0
             descriptions.append(desc)
-            print(f"  {c.PURPLE}[vision]{c.RESET} Image {i+1}: {img_elapsed:.0f}s \"{c._safe(desc[:80])}\"" + " " * 20)
+            truncated = c._safe(desc[:80]) + ("..." if len(desc) > 80 else "")
+            print(f"  {c.PURPLE}[vision]{c.RESET} Image {i+1}: {img_elapsed:.0f}s \"{truncated}\"" + " " * 20)
         except Exception as e:
             print(f"  {c.PURPLE}[vision]{c.RESET} Image {i+1}: ERROR — {e}" + " " * 20)
 
