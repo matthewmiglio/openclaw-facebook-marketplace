@@ -6,6 +6,7 @@ between what a listing claims and what the photos actually show.
 """
 
 import os
+import threading
 import time
 import ollama
 import colors as c
@@ -38,12 +39,24 @@ def describe_listing_images(image_paths: list[str]) -> list[str]:
     for i, path in enumerate(image_paths):
         try:
             img_t0 = time.time()
-            desc = describe_image(path)
+            result_holder = {}
+
+            def _analyze(p=path):
+                result_holder["desc"] = describe_image(p)
+
+            thread = threading.Thread(target=_analyze)
+            thread.start()
+            while thread.is_alive():
+                elapsed = int(time.time() - img_t0)
+                print(f"  {c.PURPLE}[vision]{c.RESET} Analyzing image {i+1} {elapsed}s...", end="\r")
+                thread.join(timeout=1)
+
+            desc = result_holder["desc"]
             img_elapsed = time.time() - img_t0
             descriptions.append(desc)
-            c.vision(f"Image {i+1}: {img_elapsed:.0f}s \"{desc[:80]}\"")
+            print(f"  {c.PURPLE}[vision]{c.RESET} Image {i+1}: {img_elapsed:.0f}s \"{c._safe(desc[:80])}\"" + " " * 20)
         except Exception as e:
-            c.vision(f"Image {i+1}: ERROR — {e}")
+            print(f"  {c.PURPLE}[vision]{c.RESET} Image {i+1}: ERROR — {e}" + " " * 20)
 
     elapsed = time.time() - t0
     c.vision(f"Vision analysis took {elapsed:.1f}s for {len(image_paths)} images")

@@ -149,7 +149,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
                 c.extractor(f"Extracted in {time.time() - t0:.1f}s:")
                 c.extractor(f"  title: {listing_data.get('title')}")
                 c.extractor(f"  price: ${listing_data.get('price')}")
-                c.extractor(f"  description: {listing_data.get('description', '')[:120]}...")
+                c.extractor(f"  description: {listing_data.get('description', '')[:80]}...")
 
                 # Extract and analyze listing images
                 image_paths = await extract_listing_images(page)

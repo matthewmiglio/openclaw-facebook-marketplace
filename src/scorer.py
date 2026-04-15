@@ -7,6 +7,7 @@ model responds.
 """
 
 import json
+import threading
 import time
 import ollama
 import colors as c
@@ -85,21 +86,31 @@ What the listing images show:
         c.scorer(f"Exclusions: {exclusions}")
     t0 = time.time()
 
-    response = ollama.chat(
-        model=model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-        format="json",
-    )
+    result_holder = {}
 
+    def _call_scorer():
+        result_holder["response"] = ollama.chat(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            format="json",
+        )
+
+    thread = threading.Thread(target=_call_scorer)
+    thread.start()
+    while thread.is_alive():
+        elapsed = int(time.time() - t0)
+        print(f"  {c.ORANGE}[scorer]{c.RESET} Evaluating {elapsed}s...", end="\r")
+        thread.join(timeout=1)
+
+    response = result_holder["response"]
     elapsed = time.time() - t0
     raw = response["message"]["content"]
     tokens = response.get("eval_count", "?")
     safe_raw = raw.encode("ascii", errors="replace").decode("ascii")
-    c.scorer(f"Model responded in {elapsed:.1f}s ({tokens} tokens)")
-    c.scorer(f"Raw output: {safe_raw}")
+    print(f"  {c.ORANGE}[scorer]{c.RESET} Model responded in {elapsed:.1f}s ({tokens} tokens)" + " " * 20)
 
     result = json.loads(raw)
     result.setdefault("score", 50)
