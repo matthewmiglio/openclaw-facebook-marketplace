@@ -23,13 +23,13 @@ Return ONLY valid JSON:
 HARD RULES — these always result in pass: false:
 - PRICE CHECK: The buyer's max price is their BUDGET LIMIT. The listing price is what the seller is asking. If the listing price is HIGHER than the buyer's max price, FAIL. If the listing price is LOWER, that is GOOD (under budget). Do not confuse these two numbers.
 - If the listing price is $0 or says "trade only" or "free", FAIL — these are not real sales.
-- If the title/description clearly does not match the product the buyer wants, FAIL.
+- PRODUCT MATCH (BE STRICT): The listing must be the SPECIFIC product the buyer wants, not just the same general category. A generic "smart glasses" listing is NOT the same as "Even Realities G2 smart glasses". A "GPU" is NOT the same as "RTX 4090". The brand and model must match. If the listing title and description do not mention the specific brand/model the buyer wants, FAIL. Vague or generic listings that COULD be the right product but don't say so = FAIL.
 - If the buyer specified exclusions, and the listing matches an exclusion, FAIL.
 - If image descriptions are provided and they show a DIFFERENT product than what the title claims, FAIL. For example, if the title says "iPhone 14" but the images show phone cases, FAIL.
 
 Scoring guidelines (only for listings that pass the hard rules):
+- Exact brand + model match in title = higher score
 - Well under budget = higher score
-- Exact product match = higher score
 - Good condition = higher score
 - Images match the title/description = higher score
 - Signs of scam (too good to be true, stock photos, vague description) = lower score or FAIL

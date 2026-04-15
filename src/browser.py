@@ -183,31 +183,42 @@ async def extract_listing_data(page: Page) -> dict:
 
 
 async def extract_listing_images(page: Page, max_images: int = 5) -> list[str]:
-    """Screenshot listing product photos from the carousel. Returns list of temp file paths."""
+    """Screenshot listing product photos by clicking through the carousel. Returns list of temp file paths."""
     print(f"  [images] Extracting listing images...")
 
-    # Facebook listing images are large <img> tags inside the main content area.
-    # They sit inside the photo carousel/gallery section.
-    img_elements = await page.query_selector_all('div[role="main"] img')
-
-    # Filter to actual product photos: large images, not profile pics or icons
     photo_paths = []
-    for img in img_elements:
-        if len(photo_paths) >= max_images:
-            break
-        try:
-            box = await img.bounding_box()
-            if not box or box["width"] < 200 or box["height"] < 200:
-                continue
-            # Skip if it's not visible
-            if not await img.is_visible():
-                continue
 
-            # Screenshot this image element to a temp file
-            tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
-            tmp.close()
-            await img.screenshot(path=tmp.name)
-            photo_paths.append(tmp.name)
+    # Count available images via thumbnail buttons (aria-label="Thumbnail 0", "Thumbnail 1", etc.)
+    thumbnails = await page.query_selector_all('div[role="main"] div[aria-label^="Thumbnail "]')
+    num_images = max(len(thumbnails), 1)  # at least 1 (the main image)
+    num_to_capture = min(num_images, max_images)
+    print(f"  [images] Found {num_images} thumbnails, capturing {num_to_capture}")
+
+    for i in range(num_to_capture):
+        try:
+            # Find the main displayed product image (alt starts with "Product photo of")
+            main_img = await page.query_selector('div[role="main"] img[alt^="Product photo of"]')
+            if not main_img or not await main_img.is_visible():
+                # Fallback: largest visible image in main
+                imgs = await page.query_selector_all('div[role="main"] img')
+                for img in imgs:
+                    box = await img.bounding_box()
+                    if box and box["width"] >= 200 and box["height"] >= 200 and await img.is_visible():
+                        main_img = img
+                        break
+
+            if main_img:
+                tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+                tmp.close()
+                await main_img.screenshot(path=tmp.name)
+                photo_paths.append(tmp.name)
+
+            # Click "View next image" to advance the carousel (if more images to capture)
+            if i < num_to_capture - 1:
+                next_btn = await page.query_selector('div[role="main"] div[aria-label="View next image"]')
+                if next_btn and await next_btn.is_visible():
+                    await next_btn.click()
+                    await human_delay(0.5, 1.0)
         except Exception:
             continue
 
