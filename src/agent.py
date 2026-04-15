@@ -15,6 +15,7 @@ from scorer import score_listing
 from vision import describe_listing_images, cleanup_image_files
 from messenger import compose_message
 from storage import get_db, save_listing, save_message, save_session
+import colors as c
 
 
 def safe_print(text: str):
@@ -51,12 +52,12 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
         model: Ollama model name used by the parser, scorer, and messenger.
     """
     run_start = time.time()
-    print(f"\n{'='*60}")
-    print(f"[{timestamp()}] Agent started")
-    print(f"{'='*60}")
+    c.summary(f"\n{'='*60}")
+    c.summary(f"[{timestamp()}] Agent started")
+    c.summary(f"{'='*60}")
 
     # Step 1: Parse the prompt
-    print(f"\n--- Step 1: Parse prompt ---")
+    c.step("\n--- Step 1: Parse prompt ---")
     t0 = time.time()
     intent = parse_prompt(user_prompt, model=model)
     print(f"[{timestamp()}] Parsing took {time.time() - t0:.1f}s total")
@@ -79,7 +80,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
         log(f"Search only — no messaging")
 
     # Step 2: Launch browser and search
-    print(f"\n--- Step 2: Launch browser + search ---")
+    c.step("\n--- Step 2: Launch browser + search ---")
     t0 = time.time()
     pw, context, page = await launch_browser()
     print(f"[{timestamp()}] Browser launched in {time.time() - t0:.1f}s")
@@ -98,7 +99,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
         print(f"[{timestamp()}] URL: {page.url}")
 
         # Step 3: Collect listings
-        print(f"\n--- Step 3: Scroll + collect listings ---")
+        c.step("\n--- Step 3: Scroll + collect listings ---")
         t0 = time.time()
         listing_elements = await scroll_for_listings(page, target_count=intent["quantity"])
         print(f"[{timestamp()}] Scrolling took {time.time() - t0:.1f}s — found {len(listing_elements)} links")
@@ -114,10 +115,10 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
 
         print(f"[{timestamp()}] Collected {len(hrefs)} valid hrefs")
         for i, h in enumerate(hrefs):
-            print(f"  [{i+1}] {h[:100]}")
+            c.href(i + 1, h[:100])
 
         # Step 4: Visit each listing, extract data, score it
-        print(f"\n--- Step 4: Extract + score listings ---")
+        c.step("\n--- Step 4: Extract + score listings ---")
         results = []
         skipped = 0
         errors = 0
@@ -132,23 +133,23 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
 
         for i, href in enumerate(hrefs):
             if rate_limited:
-                print(f"\n  --- Listing {i+1}/{len(hrefs)} SKIPPED (rate limited) ---")
+                c.step(f"\n  --- Listing {i+1}/{len(hrefs)} SKIPPED (rate limited) ---")
                 continue
-            print(f"\n  --- Listing {i+1}/{len(hrefs)} ---")
-            print(f"  [browser] Navigating to: {href[:60]}...")
+            c.step(f"\n  --- Listing {i+1}/{len(hrefs)} ---")
+            c.browser(f"Navigating to: {href[:60]}...")
             try:
                 t0 = time.time()
                 await page.goto(href, wait_until="domcontentloaded")
                 await human_delay(1, 2)
-                print(f"  [browser] Page loaded in {time.time() - t0:.1f}s")
+                c.browser(f"Page loaded in {time.time() - t0:.1f}s")
 
                 t0 = time.time()
                 listing_data = await extract_listing_data(page)
                 listing_data["listing_url"] = href
-                safe_print(f"  [extractor] Extracted in {time.time() - t0:.1f}s:")
-                safe_print(f"    title: {listing_data.get('title')}")
-                safe_print(f"    price: ${listing_data.get('price')}")
-                safe_print(f"    description: {listing_data.get('description', '')[:120]}...")
+                c.extractor(f"Extracted in {time.time() - t0:.1f}s:")
+                c.extractor(f"  title: {listing_data.get('title')}")
+                c.extractor(f"  price: ${listing_data.get('price')}")
+                c.extractor(f"  description: {listing_data.get('description', '')[:120]}...")
 
                 # Extract and analyze listing images
                 image_paths = await extract_listing_images(page)
@@ -174,19 +175,19 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
                         elapsed = time.time() - last_message_time
                         remaining = message_cooldown - elapsed
                         if remaining > 0:
-                            print(f"  [throttle] {elapsed:.0f}s since last message, waiting {remaining:.0f}s more (cooldown: {message_cooldown:.0f}s)...")
+                            c.throttle(f"{elapsed:.0f}s since last message, waiting {remaining:.0f}s more (cooldown: {message_cooldown:.0f}s)...")
                             await asyncio.sleep(remaining)
                         else:
-                            print(f"  [throttle] {elapsed:.0f}s since last message — cooldown satisfied")
+                            c.throttle(f"{elapsed:.0f}s since last message — cooldown satisfied")
                         # Pick a new random cooldown for next time
                         message_cooldown = random.uniform(MESSAGE_COOLDOWN_MIN, MESSAGE_COOLDOWN_MAX)
 
                     msg = compose_message(listing_data, intent["message_intent"], model=model)
 
-                    print(f"  [browser] Sending message...")
+                    c.browser("Sending message...")
                     t0 = time.time()
                     result = await send_marketplace_message(page, msg)
-                    print(f"  [browser] Send attempt took {time.time() - t0:.1f}s — {result.upper()}")
+                    c.browser(f"Send attempt took {time.time() - t0:.1f}s — {result.upper()}")
 
                     if result == "sent":
                         listing_data["status"] = "messaged"
@@ -198,8 +199,8 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
                         listing_data["status"] = "rate_limited"
                         save_listing(db, listing_data)
                         rate_limited = True
-                        print(f"\n  *** STOPPING — Facebook messaging limit reached after {messages_sent} messages ***")
-                        print(f"  *** Remaining {len(hrefs) - i - 1} listings will be skipped ***")
+                        c.rate_limit(f"STOPPING — Facebook messaging limit reached after {messages_sent} messages")
+                        c.rate_limit(f"Remaining {len(hrefs) - i - 1} listings will be skipped")
                     else:
                         listing_data["status"] = "message_failed"
                         save_listing(db, listing_data)
@@ -209,7 +210,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
                 results.append(listing_data)
 
             except Exception as e:
-                print(f"  [ERROR] {type(e).__name__}: {e}")
+                c.error(f"{type(e).__name__}: {e}")
                 errors += 1
                 continue
 
@@ -219,19 +220,19 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
         msg_failed = [r for r in results if r.get("status") == "message_failed"]
         rate_limited_count = [r for r in results if r.get("status") == "rate_limited"]
 
-        print(f"\n{'='*60}")
-        print(f"[{timestamp()}] AGENT RUN COMPLETE — {total_time:.1f}s total")
-        print(f"{'='*60}")
-        print(f"  Listings found:    {len(hrefs)}")
-        print(f"  Passed scoring:    {len(results)}")
-        print(f"  Skipped (low score): {skipped}")
-        print(f"  Errors:            {errors}")
+        c.summary(f"\n{'='*60}")
+        c.summary(f"[{timestamp()}] AGENT RUN COMPLETE — {total_time:.1f}s total")
+        c.summary(f"{'='*60}")
+        c.summary(f"  Listings found:    {len(hrefs)}")
+        c.summary(f"  Passed scoring:    {len(results)}")
+        c.summary(f"  Skipped (low score): {skipped}")
+        c.summary(f"  Errors:            {errors}")
         if should_message:
-            print(f"  Messages sent:     {len(messaged)}")
-            print(f"  Messages failed:   {len(msg_failed)}")
+            c.summary(f"  Messages sent:     {len(messaged)}")
+            c.summary(f"  Messages failed:   {len(msg_failed)}")
             if rate_limited:
-                print(f"  Rate limited:      YES (hit after {messages_sent} messages)")
-        print(f"{'='*60}")
+                c.summary(f"  Rate limited:      YES (hit after {messages_sent} messages)")
+        c.summary(f"{'='*60}")
 
         for r in results:
             title = r.get('title', '?')
@@ -240,7 +241,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
             status = r.get('status', '?')
             safe_print(f"  [{status:>14}] {title} -- ${price} (score: {score})")
 
-        print(f"{'='*60}\n")
+        c.summary(f"{'='*60}\n")
 
         # Save session
         save_session(db, user_prompt, json.dumps(intent),

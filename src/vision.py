@@ -8,6 +8,7 @@ between what a listing claims and what the photos actually show.
 import os
 import time
 import ollama
+import colors as c
 
 VISION_MODEL = "moondream"
 PROMPT = "What is the main product or item in this image?"
@@ -30,7 +31,7 @@ def describe_listing_images(image_paths: list[str]) -> list[str]:
     if not image_paths:
         return []
 
-    print(f"  [vision] Analyzing {len(image_paths)} images with {VISION_MODEL}...")
+    c.vision(f"Analyzing {len(image_paths)} images with {VISION_MODEL}...")
     t0 = time.time()
 
     descriptions = []
@@ -40,12 +41,12 @@ def describe_listing_images(image_paths: list[str]) -> list[str]:
             desc = describe_image(path)
             img_elapsed = time.time() - img_t0
             descriptions.append(desc)
-            print(f"  [vision] Image {i+1}: {img_elapsed:.0f}s \"{desc[:80]}\"")
+            c.vision(f"Image {i+1}: {img_elapsed:.0f}s \"{desc[:80]}\"")
         except Exception as e:
-            print(f"  [vision] Image {i+1}: ERROR — {e}")
+            c.vision(f"Image {i+1}: ERROR — {e}")
 
     elapsed = time.time() - t0
-    print(f"  [vision] Vision analysis took {elapsed:.1f}s for {len(image_paths)} images")
+    c.vision(f"Vision analysis took {elapsed:.1f}s for {len(image_paths)} images")
     return descriptions
 
 

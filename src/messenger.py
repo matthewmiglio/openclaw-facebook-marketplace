@@ -6,14 +6,7 @@ Uses a local Ollama model with strict style rules (no greetings, no sign-offs,
 
 import time
 import ollama
-
-
-def safe_print(text: str):
-    """Print text, replacing non-ASCII chars to avoid Windows console encoding errors."""
-    try:
-        print(text)
-    except UnicodeEncodeError:
-        print(text.encode("ascii", errors="replace").decode("ascii"))
+import colors as c
 
 
 SYSTEM_PROMPT = """Write a Facebook Marketplace message from a buyer to a seller.
@@ -58,7 +51,7 @@ def compose_message(listing: dict, message_intent: str, model: str = "mistral") 
 Buyer wants to say: {message_intent}
 """
 
-    safe_print(f"  [messenger] Composing message for \"{title}\" -- intent: {message_intent}")
+    c.messenger(f"Composing message for \"{title}\" -- intent: {message_intent}")
     t0 = time.time()
 
     response = ollama.chat(
@@ -72,8 +65,8 @@ Buyer wants to say: {message_intent}
     elapsed = time.time() - t0
     raw = response["message"]["content"]
     tokens = response.get("eval_count", "?")
-    safe_print(f"  [messenger] Model responded in {elapsed:.1f}s ({tokens} tokens)")
-    safe_print(f"  [messenger] Raw output: {raw}")
+    c.messenger(f"Model responded in {elapsed:.1f}s ({tokens} tokens)")
+    c.messenger(f"Raw output: {raw}")
 
     msg = raw.strip().strip('"')
 
@@ -83,5 +76,5 @@ Buyer wants to say: {message_intent}
     msg = re.sub(r'\[Your Name\]', '', msg).strip()
     msg = re.sub(r'\n{2,}', '\n', msg).strip()
 
-    safe_print(f"  [messenger] Final message: \"{msg}\"")
+    c.messenger(f"Final message: \"{msg}\"")
     return msg

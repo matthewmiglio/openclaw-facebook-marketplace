@@ -10,6 +10,7 @@ import asyncio
 import random
 import tempfile
 from playwright.async_api import async_playwright, Page, BrowserContext
+import colors as c
 
 PROFILE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "browser_profile")
 MARKETPLACE_URL = "https://www.facebook.com/marketplace"
@@ -90,7 +91,7 @@ async def extract_listing_data(page: Page) -> dict:
         # Give the SPA a moment to hydrate the listing content
         await human_delay(2, 4)
     except Exception:
-        print("  [extractor] WARNING: main content area did not appear in 10s")
+        c.extractor("WARNING: main content area did not appear in 10s")
         await human_delay(3, 5)
 
     data = await page.evaluate("""() => {
@@ -184,7 +185,7 @@ async def extract_listing_data(page: Page) -> dict:
 
 async def extract_listing_images(page: Page, max_images: int = 5) -> list[str]:
     """Screenshot listing product photos by clicking through the carousel. Returns list of temp file paths."""
-    print(f"  [images] Extracting listing images...")
+    c.images("Extracting listing images...")
 
     photo_paths = []
 
@@ -192,7 +193,7 @@ async def extract_listing_images(page: Page, max_images: int = 5) -> list[str]:
     thumbnails = await page.query_selector_all('div[role="main"] div[aria-label^="Thumbnail "]')
     num_images = max(len(thumbnails), 1)  # at least 1 (the main image)
     num_to_capture = min(num_images, max_images)
-    print(f"  [images] Found {num_images} thumbnails, capturing {num_to_capture}")
+    c.images(f"Found {num_images} thumbnails, capturing {num_to_capture}")
 
     for i in range(num_to_capture):
         try:
@@ -222,7 +223,7 @@ async def extract_listing_images(page: Page, max_images: int = 5) -> list[str]:
         except Exception:
             continue
 
-    print(f"  [images] Captured {len(photo_paths)} product photos")
+    c.images(f"Captured {len(photo_paths)} product photos")
     return photo_paths
 
 
@@ -234,7 +235,7 @@ async def check_rate_limit_popup(page: Page) -> bool:
     try:
         popup = await page.query_selector('text="You\'ve reached the messaging limit"')
         if popup and await popup.is_visible():
-            print("  [msg] RATE LIMIT DETECTED — Facebook messaging limit reached")
+            c.messenger("RATE LIMIT DETECTED — Facebook messaging limit reached")
             # Dismiss the popup by clicking OK
             ok_button = await page.query_selector('div[aria-label="OK"]')
             if ok_button and await ok_button.is_visible():
@@ -257,7 +258,7 @@ async def send_marketplace_message(page: Page, message: str) -> str:
 
     Returns: "sent", "failed", or "rate_limited"
     """
-    print("  [msg] Looking for Message button on listing page...")
+    c.messenger("Looking for Message button on listing page...")
 
     # Step 1: Click the "Message" button to open the dialog
     msg_button = await page.query_selector('div[role="main"] div[role="button"][aria-label="Message"]')
@@ -265,39 +266,39 @@ async def send_marketplace_message(page: Page, message: str) -> str:
         msg_button = await page.query_selector('div[role="main"] div[role="button"]:has-text("Message")')
 
     if not msg_button:
-        print("  [msg] No Message button found on page")
+        c.messenger("No Message button found on page")
         return "failed"
 
     is_visible = await msg_button.is_visible()
     if not is_visible:
-        print("  [msg] Message button found but not visible")
+        c.messenger("Message button found but not visible")
         return "failed"
 
-    print("  [msg] Clicking Message button...")
+    c.messenger("Clicking Message button...")
     await msg_button.click()
     await human_delay(2, 3)
 
     # Step 2: Wait for the message dialog to appear
-    print("  [msg] Waiting for message dialog...")
+    c.messenger("Waiting for message dialog...")
     try:
         dialog = await page.wait_for_selector('div[role="dialog"]', timeout=10000)
     except Exception:
         # The rate-limit popup can appear instead of the message dialog
         if await check_rate_limit_popup(page):
             return "rate_limited"
-        print("  [msg] Message dialog did not appear")
+        c.messenger("Message dialog did not appear")
         return "failed"
 
-    print("  [msg] Dialog opened")
+    c.messenger("Dialog opened")
 
     # Step 3: Find the textarea inside the dialog and clear + type our message
     textarea = await dialog.query_selector('textarea')
     if not textarea:
-        print("  [msg] No textarea found in dialog")
+        c.messenger("No textarea found in dialog")
         return "failed"
 
     is_visible = await textarea.is_visible()
-    print(f"  [msg] Found textarea in dialog (visible={is_visible})")
+    c.messenger(f"Found textarea in dialog (visible={is_visible})")
 
     if not is_visible:
         # There might be multiple textareas; find the visible one
@@ -306,11 +307,11 @@ async def send_marketplace_message(page: Page, message: str) -> str:
             if await ta.is_visible():
                 textarea = ta
                 is_visible = True
-                print("  [msg] Found alternative visible textarea")
+                c.messenger("Found alternative visible textarea")
                 break
 
     if not is_visible:
-        print("  [msg] No visible textarea in dialog")
+        c.messenger("No visible textarea in dialog")
         return "failed"
 
     # Clear any pre-filled text and type our message
@@ -320,7 +321,7 @@ async def send_marketplace_message(page: Page, message: str) -> str:
     await human_delay(0.3, 0.6)
     await textarea.fill(message)
     await human_delay(0.5, 1.0)
-    print(f"  [msg] Typed message into textarea")
+    c.messenger("Typed message into textarea")
 
     # Step 4: Click the Send button inside the dialog
     send_button = await dialog.query_selector('div[aria-label^="Send message"]')
@@ -330,12 +331,12 @@ async def send_marketplace_message(page: Page, message: str) -> str:
         send_button = await dialog.query_selector('div[role="button"]:has-text("Send")')
 
     if send_button and await send_button.is_visible():
-        print("  [msg] Clicking Send button...")
+        c.messenger("Clicking Send button...")
         await send_button.click()
         await human_delay(1, 2)
     else:
         # Fallback: press Enter in the textarea
-        print("  [msg] No Send button found, pressing Enter...")
+        c.messenger("No Send button found, pressing Enter...")
         await textarea.press("Enter")
         await human_delay(1, 2)
 
@@ -343,5 +344,5 @@ async def send_marketplace_message(page: Page, message: str) -> str:
     if await check_rate_limit_popup(page):
         return "rate_limited"
 
-    print("  [msg] Message sent!")
+    c.messenger("Message sent!")
     return "sent"

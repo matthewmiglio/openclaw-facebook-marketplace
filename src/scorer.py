@@ -9,6 +9,7 @@ model responds.
 import json
 import time
 import ollama
+import colors as c
 
 SYSTEM_PROMPT = """You are a strict listing evaluator for a Facebook Marketplace buying agent.
 Given a listing and the buyer's criteria, score the listing from 0 to 100 and decide if it's worth contacting.
@@ -79,9 +80,9 @@ What the listing images show:
 """
 
     safe_title = title.encode("ascii", errors="replace").decode("ascii")
-    print(f"  [scorer] Evaluating: \"{safe_title}\" @ ${price} against criteria: {product} <=${max_price}")
+    c.scorer(f"Evaluating: \"{safe_title}\" @ ${price} against criteria: {product} <=${max_price}")
     if exclusions:
-        print(f"  [scorer] Exclusions: {exclusions}")
+        c.scorer(f"Exclusions: {exclusions}")
     t0 = time.time()
 
     response = ollama.chat(
@@ -97,8 +98,8 @@ What the listing images show:
     raw = response["message"]["content"]
     tokens = response.get("eval_count", "?")
     safe_raw = raw.encode("ascii", errors="replace").decode("ascii")
-    print(f"  [scorer] Model responded in {elapsed:.1f}s ({tokens} tokens)")
-    print(f"  [scorer] Raw output: {safe_raw}")
+    c.scorer(f"Model responded in {elapsed:.1f}s ({tokens} tokens)")
+    c.scorer(f"Raw output: {safe_raw}")
 
     result = json.loads(raw)
     result.setdefault("score", 50)
@@ -120,7 +121,18 @@ What the listing images show:
         except (ValueError, TypeError):
             pass
 
+    # Hard override: brand/model keywords must appear in listing
+    # These are set by the parser LLM — it knows which words actually matter per product
+    brand_keywords = [kw.lower() for kw in criteria.get("brand_keywords", [])]
+    if brand_keywords and title:
+        listing_text = f"{title} {listing.get('description', '')}".lower()
+        matched = [kw for kw in brand_keywords if kw in listing_text]
+        if len(matched) == 0:
+            result["pass"] = False
+            result["score"] = 0
+            result["reasoning"] = f"Product mismatch: none of {brand_keywords} found in listing. " + result["reasoning"]
+
     verdict = "PASS" if result["pass"] else "FAIL"
     safe_reasoning = result['reasoning'].encode("ascii", errors="replace").decode("ascii")
-    print(f"  [scorer] Verdict: {verdict} (score: {result['score']}) -- {safe_reasoning}")
+    c.scorer(f"Verdict: {verdict} (score: {result['score']}) -- {safe_reasoning}")
     return result
