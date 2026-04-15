@@ -81,6 +81,19 @@ async def scroll_for_listings(page: Page, target_count: int = 10):
     return listings[:target_count]
 
 
+async def check_listing_sold(page: Page) -> bool:
+    """Check if the listing page shows a 'Sold' badge."""
+    try:
+        span = await page.query_selector('div[role="main"] span:has-text("Sold")')
+        if span and await span.is_visible():
+            text = await span.inner_text()
+            if text.strip() == "Sold":
+                return True
+    except Exception:
+        pass
+    return False
+
+
 async def check_already_messaged(page: Page) -> bool:
     """Check if the listing page shows a 'Message again' button, meaning we already contacted this seller."""
     try:
