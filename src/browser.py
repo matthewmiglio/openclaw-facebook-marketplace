@@ -84,8 +84,13 @@ async def scroll_for_listings(page: Page, target_count: int = 10):
 async def check_already_messaged(page: Page) -> bool:
     """Check if the listing page shows a 'Message again' button, meaning we already contacted this seller."""
     try:
-        btn = await page.query_selector('div[role="main"] span:text-is("Message again")')
+        # Check for the button with aria-label="Message again"
+        btn = await page.query_selector('div[role="main"] div[aria-label="Message again"]')
         if btn and await btn.is_visible():
+            return True
+        # Fallback: check for span containing the text
+        span = await page.query_selector('div[role="main"] span:has-text("Message again")')
+        if span and await span.is_visible():
             return True
     except Exception:
         pass
