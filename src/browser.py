@@ -262,96 +262,110 @@ async def send_marketplace_message(page: Page, message: str) -> str:
     """Click the Message button on a listing page, which opens a dialog, then type and send.
 
     Facebook's flow:
-    1. Listing page has a visible "Message" button (div[aria-label="Message"])
-    2. Clicking it opens a dialog (div[role="dialog"]) with the message composer
-    3. Dialog has a textarea for the message
-    4. Dialog has a "Send" button (div[aria-label^="Send message"])
+    1. Listing page has a visible "Message" or "Send seller a message" area
+    2. Clicking it opens a dialog (aria-label="Message <name>", role="dialog")
+    3. Dialog has a textarea and quick-reply buttons
+    4. Dialog has a "Send message" button (aria-disabled until text is typed)
 
     Returns: "sent", "failed", or "rate_limited"
     """
     c.messenger("Looking for Message button on listing page...")
 
-    # Step 1: Click the "Message" button to open the dialog
-    msg_button = await page.query_selector('div[role="main"] div[role="button"][aria-label="Message"]')
-    if not msg_button:
-        msg_button = await page.query_selector('div[role="main"] div[role="button"]:has-text("Message")')
+    # Step 1: Check if a message dialog is already open
+    dialog = await page.query_selector('div[role="dialog"][aria-label^="Message "]')
+    if dialog and await dialog.is_visible():
+        c.messenger("Message dialog already open")
+    else:
+        # Click the "Message" button to open the dialog
+        msg_button = await page.query_selector('div[role="main"] div[role="button"][aria-label="Message"]')
+        if not msg_button:
+            msg_button = await page.query_selector('div[role="main"] div[role="button"]:has-text("Message")')
+        if not msg_button:
+            # Try the "Send seller a message" span area
+            msg_button = await page.query_selector('div[role="main"] span:has-text("Send seller a message")')
 
-    if not msg_button:
-        c.messenger("No Message button found on page")
-        return "failed"
+        if not msg_button:
+            c.messenger("No Message button found on page")
+            return "failed"
 
-    is_visible = await msg_button.is_visible()
-    if not is_visible:
-        c.messenger("Message button found but not visible")
-        return "failed"
+        is_visible = await msg_button.is_visible()
+        if not is_visible:
+            c.messenger("Message button found but not visible")
+            return "failed"
 
-    c.messenger("Clicking Message button...")
-    await msg_button.click()
-    await human_delay(2, 3)
+        c.messenger("Clicking Message button...")
+        await msg_button.click()
+        await human_delay(2, 3)
 
-    # Step 2: Wait for the message dialog to appear
-    c.messenger("Waiting for message dialog...")
-    try:
-        dialog = await page.wait_for_selector('div[role="dialog"]', timeout=10000)
-    except Exception:
-        # The rate-limit popup can appear instead of the message dialog
-        if await check_rate_limit_popup(page):
-            return "rate_limited"
-        c.messenger("Message dialog did not appear")
-        return "failed"
+        # Step 2: Wait for the message dialog to appear
+        c.messenger("Waiting for message dialog...")
+        try:
+            # Try the specific marketplace message dialog first
+            dialog = await page.wait_for_selector('div[role="dialog"][aria-label^="Message "]', timeout=15000)
+        except Exception:
+            try:
+                # Fallback: any dialog
+                dialog = await page.wait_for_selector('div[role="dialog"]', timeout=5000)
+            except Exception:
+                if await check_rate_limit_popup(page):
+                    return "rate_limited"
+                c.messenger("Message dialog did not appear")
+                return "failed"
 
     c.messenger("Dialog opened")
 
-    # Step 3: Find the textarea inside the dialog and clear + type our message
+    # Step 3: Find the textarea inside the dialog and type our message
     textarea = await dialog.query_selector('textarea')
     if not textarea:
         c.messenger("No textarea found in dialog")
         return "failed"
 
-    is_visible = await textarea.is_visible()
-    c.messenger(f"Found textarea in dialog (visible={is_visible})")
+    # Wait briefly for textarea to be interactive
+    await human_delay(0.5, 1.0)
 
+    is_visible = await textarea.is_visible()
     if not is_visible:
-        # There might be multiple textareas; find the visible one
         textareas = await dialog.query_selector_all('textarea')
         for ta in textareas:
             if await ta.is_visible():
                 textarea = ta
                 is_visible = True
-                c.messenger("Found alternative visible textarea")
                 break
 
     if not is_visible:
         c.messenger("No visible textarea in dialog")
         return "failed"
 
-    # Clear any pre-filled text and type our message
+    c.messenger("Found textarea, typing message...")
     await textarea.click()
     await human_delay(0.3, 0.6)
     await textarea.fill("")
     await human_delay(0.3, 0.6)
     await textarea.fill(message)
-    await human_delay(0.5, 1.0)
-    c.messenger("Typed message into textarea")
+    await human_delay(1.0, 2.0)
 
-    # Step 4: Click the Send button inside the dialog
-    send_button = await dialog.query_selector('div[aria-label^="Send message"]')
+    # Step 4: Click the Send button — it starts aria-disabled="true" and enables after typing
+    send_button = await dialog.query_selector('div[aria-label="Send message"][role="button"]')
     if not send_button:
-        send_button = await dialog.query_selector('div[role="button"][aria-label*="Send"]')
+        send_button = await dialog.query_selector('div[aria-label^="Send message"]')
     if not send_button:
         send_button = await dialog.query_selector('div[role="button"]:has-text("Send")')
 
     if send_button and await send_button.is_visible():
+        # Check if the button is still disabled — wait a moment for it to enable
+        is_disabled = await send_button.get_attribute("aria-disabled")
+        if is_disabled == "true":
+            c.messenger("Send button disabled, waiting for it to enable...")
+            await human_delay(1.0, 2.0)
+
         c.messenger("Clicking Send button...")
         await send_button.click()
         await human_delay(1, 2)
     else:
-        # Fallback: press Enter in the textarea
         c.messenger("No Send button found, pressing Enter...")
         await textarea.press("Enter")
         await human_delay(1, 2)
 
-    # Check if the rate-limit popup appeared after sending
     if await check_rate_limit_popup(page):
         return "rate_limited"
 
