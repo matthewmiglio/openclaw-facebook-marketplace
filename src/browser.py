@@ -81,6 +81,17 @@ async def scroll_for_listings(page: Page, target_count: int = 10):
     return listings[:target_count]
 
 
+async def check_already_messaged(page: Page) -> bool:
+    """Check if the listing page shows a 'Message again' button, meaning we already contacted this seller."""
+    try:
+        btn = await page.query_selector('div[role="main"] span:text-is("Message again")')
+        if btn and await btn.is_visible():
+            return True
+    except Exception:
+        pass
+    return False
+
+
 async def extract_listing_data(page: Page) -> dict:
     """Extract structured data from a listing page. Waits for FB SPA content to render."""
 

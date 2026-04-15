@@ -10,7 +10,7 @@ import json
 import random
 import time
 from prompt_parser import parse_prompt
-from browser import launch_browser, search_marketplace, scroll_for_listings, extract_listing_data, extract_listing_images, send_marketplace_message, human_delay
+from browser import launch_browser, search_marketplace, scroll_for_listings, check_already_messaged, extract_listing_data, extract_listing_images, send_marketplace_message, human_delay
 from scorer import score_listing
 from vision import describe_listing_images, cleanup_image_files
 from messenger import compose_message
@@ -142,6 +142,12 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
                 await page.goto(href, wait_until="domcontentloaded")
                 await human_delay(1, 2)
                 c.browser(f"Page loaded in {time.time() - t0:.1f}s")
+
+                # Skip if we already messaged this seller
+                if await check_already_messaged(page):
+                    c.messenger("Already messaged this seller — skipping")
+                    skipped += 1
+                    continue
 
                 t0 = time.time()
                 listing_data = await extract_listing_data(page)
