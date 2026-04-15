@@ -21,7 +21,7 @@ Return ONLY valid JSON:
 }
 
 HARD RULES — these always result in pass: false:
-- If a max price is set and the listing price EXCEEDS it, FAIL. No exceptions.
+- PRICE CHECK: The buyer's max price is their BUDGET LIMIT. The listing price is what the seller is asking. If the listing price is HIGHER than the buyer's max price, FAIL. If the listing price is LOWER, that is GOOD (under budget). Do not confuse these two numbers.
 - If the listing price is $0 or says "trade only" or "free", FAIL — these are not real sales.
 - If the title/description clearly does not match the product the buyer wants, FAIL.
 - If the buyer specified exclusions, and the listing matches an exclusion, FAIL.
@@ -61,14 +61,15 @@ def score_listing(listing: dict, criteria: dict, model: str = "mistral", image_d
         image_lines = [f"  Image {i+1}: {desc}" for i, desc in enumerate(image_descriptions)]
         image_section = "\n".join(image_lines)
 
-    prompt = f"""Buyer wants: {product}
-Max price: ${max_price}
+    prompt = f"""BUYER CRITERIA:
+Product wanted: {product}
+Buyer's max budget: ${max_price} (listings priced BELOW this are acceptable)
 Condition preference: {criteria.get('condition', 'any')}
 Exclusions: {exclusions or 'none'}
 
-Listing:
+LISTING BEING EVALUATED:
 Title: {title}
-Price: ${price}
+Seller's asking price: ${price}
 Description: {listing.get('description', 'none')}
 Location: {listing.get('location', 'unknown')}
 Condition: {listing.get('condition', 'unknown')}

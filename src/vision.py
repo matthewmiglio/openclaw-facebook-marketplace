@@ -36,9 +36,11 @@ def describe_listing_images(image_paths: list[str]) -> list[str]:
     descriptions = []
     for i, path in enumerate(image_paths):
         try:
+            img_t0 = time.time()
             desc = describe_image(path)
+            img_elapsed = time.time() - img_t0
             descriptions.append(desc)
-            print(f"  [vision] Image {i+1}: {desc[:80]}")
+            print(f"  [vision] Image {i+1}: {img_elapsed:.0f}s \"{desc[:80]}\"")
         except Exception as e:
             print(f"  [vision] Image {i+1}: ERROR — {e}")
 

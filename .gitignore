@@ -32,6 +32,10 @@ desktop.ini
 *.swp
 *.swo
 
+# Test artifacts
+tests/_search_results.json
+tests/test-images/
+
 # Environment / secrets
 .env
 .env.local

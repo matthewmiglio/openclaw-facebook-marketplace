@@ -135,7 +135,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
                 print(f"\n  --- Listing {i+1}/{len(hrefs)} SKIPPED (rate limited) ---")
                 continue
             print(f"\n  --- Listing {i+1}/{len(hrefs)} ---")
-            print(f"  [browser] Navigating to: {href[:100]}")
+            print(f"  [browser] Navigating to: {href[:60]}...")
             try:
                 t0 = time.time()
                 await page.goto(href, wait_until="domcontentloaded")

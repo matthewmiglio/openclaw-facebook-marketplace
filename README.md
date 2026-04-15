@@ -71,7 +71,7 @@ agent: Searching... found 23 results → filtered to 15 → scored → messaged 
 2. **Install dependencies** (requires [Poetry](https://python-poetry.org/docs/#installation)):
    ```
    poetry install
-   playwright install chromium
+   poetry run playwright install chromium
    ```
 
 3. **First run** — log into Facebook:

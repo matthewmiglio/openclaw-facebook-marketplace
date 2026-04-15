@@ -70,7 +70,7 @@ async def scroll_for_listings(page: Page, target_count: int = 10):
 
     for _ in range(max_scrolls):
         # Facebook Marketplace listings are typically anchor tags within the search results
-        links = await page.query_selector_all('a[href*="/marketplace/item/"]')
+        links = await page.query_selector_all('a[href*="/marketplace/item/"][href*="ref=search"]')
         listings = links
         if len(listings) >= target_count:
             break
