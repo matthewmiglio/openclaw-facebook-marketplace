@@ -68,15 +68,15 @@ agent: Searching... found 23 results → filtered to 15 → scored → messaged 
    ollama pull moondream
    ```
 
-2. **Install Python deps:**
+2. **Install dependencies** (requires [Poetry](https://python-poetry.org/docs/#installation)):
    ```
-   pip install playwright ollama
+   poetry install
    playwright install chromium
    ```
 
 3. **First run** — log into Facebook:
    ```
-   python src/main.py login
+   poetry run python src/main.py login
    ```
    A browser opens. Log in manually, then close the browser. The session persists for future runs.
 
@@ -84,17 +84,17 @@ agent: Searching... found 23 results → filtered to 15 → scored → messaged 
 
 **Login (one-time setup):**
 ```
-python src/main.py login
+poetry run python src/main.py login
 ```
 
 **Interactive mode:**
 ```
-python src/main.py
+poetry run python src/main.py
 ```
 
 **One-shot:**
 ```
-python src/main.py "find 10 PS5 controllers under $40, message sellers asking if available"
+poetry run python src/main.py "find 10 PS5 controllers under $40, message sellers asking if available"
 ```
 
 **Example prompts:**
