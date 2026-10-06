@@ -7,7 +7,7 @@ desired action (search / message / both), and exclusions from free-form text.
 import json
 import threading
 import time
-import ollama
+import llm
 import colors as c
 
 SYSTEM_PROMPT = """You are a prompt parser for a Facebook Marketplace agent.
@@ -65,14 +65,10 @@ def parse_prompt(user_prompt: str, model: str = "mistral") -> dict:
     result_holder = {}
 
     def _call_ollama():
-        result_holder["response"] = ollama.chat(
-            model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            format="json",
-        )
+        try:
+            result_holder["response"] = llm.chat(model, SYSTEM_PROMPT, user_prompt, json_mode=True)
+        except Exception as e:
+            result_holder["error"] = e
 
     thread = threading.Thread(target=_call_ollama)
     thread.start()
@@ -81,6 +77,16 @@ def parse_prompt(user_prompt: str, model: str = "mistral") -> dict:
         print(f"  {c.YELLOW}[parser]{c.RESET} Parsing input prompt {elapsed}s...", end="\r")
         thread.join(timeout=1)
     print(f"  {c.YELLOW}[parser]{c.RESET} Parsing input prompt {int(time.time() - t0)}s... done")
+
+    if "error" in result_holder:
+        err = result_holder["error"]
+        if isinstance(err, ConnectionError):
+            raise RuntimeError(
+                f"Could not connect to Ollama. Make sure Ollama is installed and running "
+                f"(https://ollama.com/download), and that the '{model}' model is pulled "
+                f"(`ollama pull {model}`)."
+            ) from err
+        raise RuntimeError(f"LLM call failed ({model}): {err}") from err
 
     response = result_holder["response"]
     elapsed = time.time() - t0

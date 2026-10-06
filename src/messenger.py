@@ -5,7 +5,7 @@ Uses a local Ollama model with strict style rules (no greetings, no sign-offs,
 """
 
 import time
-import ollama
+import llm
 import colors as c
 
 
@@ -54,13 +54,7 @@ Buyer wants to say: {message_intent}
     c.messenger(f"Composing message for \"{title}\" -- intent: {message_intent}")
     t0 = time.time()
 
-    response = ollama.chat(
-        model=model,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-    )
+    response = llm.chat(model, SYSTEM_PROMPT, prompt)
 
     elapsed = time.time() - t0
     raw = response["message"]["content"]

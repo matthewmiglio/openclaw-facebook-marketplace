@@ -9,7 +9,7 @@ model responds.
 import json
 import threading
 import time
-import ollama
+import llm
 import colors as c
 
 SYSTEM_PROMPT = """You are a strict listing evaluator for a Facebook Marketplace buying agent.
@@ -89,14 +89,7 @@ What the listing images show:
     result_holder = {}
 
     def _call_scorer():
-        result_holder["response"] = ollama.chat(
-            model=model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-            format="json",
-        )
+        result_holder["response"] = llm.chat(model, SYSTEM_PROMPT, prompt, json_mode=True)
 
     thread = threading.Thread(target=_call_scorer)
     thread.start()

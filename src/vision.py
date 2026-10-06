@@ -8,31 +8,35 @@ between what a listing claims and what the photos actually show.
 import os
 import threading
 import time
-import ollama
+import llm
 import colors as c
 
 VISION_MODEL = "moondream"
 PROMPT = "What is the main product or item in this image?"
 
 
-def describe_image(image_path: str) -> str:
-    """Send a single image to moondream and get a product description."""
-    response = ollama.chat(
-        model=VISION_MODEL,
-        messages=[{"role": "user", "content": PROMPT, "images": [image_path]}],
-    )
-    text = response.message.content.strip()
+def describe_image(image_path: str, model: str = VISION_MODEL) -> str:
+    """Send a single image to the vision model and get a product description."""
+    # Claude defaults to markdown; ask for one plain sentence so the paragraph trim below keeps the content
+    system = "Answer in one or two plain sentences. No markdown, no headings." if llm.is_claude(model) else ""
+    response = llm.chat(model, system, PROMPT, images=[image_path])
+    text = response["message"]["content"].strip()
     # Moondream sometimes hallucinated follow-up Q&A — keep only the first paragraph
     text = text.split("\n\n")[0].strip()
     return text
 
 
-def describe_listing_images(image_paths: list[str]) -> list[str]:
-    """Describe all images for a listing. Returns list of descriptions."""
+def describe_listing_images(image_paths: list[str], model: str = VISION_MODEL) -> list[str]:
+    """Describe all images for a listing. Returns list of descriptions.
+
+    Claude models handle images themselves; any Ollama text model falls back to moondream.
+    """
     if not image_paths:
         return []
+    if not llm.is_claude(model):
+        model = VISION_MODEL
 
-    c.vision(f"Analyzing {len(image_paths)} images with {VISION_MODEL}...")
+    c.vision(f"Analyzing {len(image_paths)} images with {model}...")
     t0 = time.time()
 
     descriptions = []
@@ -42,7 +46,7 @@ def describe_listing_images(image_paths: list[str]) -> list[str]:
             result_holder = {}
 
             def _analyze(p=path):
-                result_holder["desc"] = describe_image(p)
+                result_holder["desc"] = describe_image(p, model)
 
             thread = threading.Thread(target=_analyze)
             thread.start()

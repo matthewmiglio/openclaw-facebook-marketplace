@@ -10,7 +10,7 @@ import json
 import random
 import time
 from prompt_parser import parse_prompt
-from browser import launch_browser, search_marketplace, scroll_for_listings, check_listing_sold, check_already_messaged, extract_listing_data, extract_listing_images, send_marketplace_message, human_delay
+from browser import launch_browser, is_logged_in,search_marketplace, scroll_for_listings, check_listing_sold, check_already_messaged, extract_listing_data, extract_listing_images, send_marketplace_message, human_delay
 from scorer import score_listing
 from vision import describe_listing_images, cleanup_image_files
 from messenger import compose_message
@@ -49,7 +49,8 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
 
     Args:
         user_prompt: The raw request string from the user.
-        model: Ollama model name used by the parser, scorer, and messenger.
+        model: Model for the parser, scorer, messenger, and (for Claude) vision.
+            An Ollama name like "mistral", or "claude" / "claude:sonnet" for the Claude CLI.
     """
     run_start = time.time()
     c.summary(f"\n{'='*60}")
@@ -84,6 +85,11 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
     t0 = time.time()
     pw, context, page = await launch_browser()
     print(f"[{timestamp()}] Browser launched in {time.time() - t0:.1f}s")
+    if not await is_logged_in(page):
+        c.summary("Not logged into Facebook. Run `python src/main.py login`, log in, close the window, then retry.")
+        await context.close()
+        await pw.stop()
+        return
     db = get_db()
 
     try:
@@ -165,7 +171,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
 
                 # Extract and analyze listing images
                 image_paths = await extract_listing_images(page)
-                image_descriptions = describe_listing_images(image_paths)
+                image_descriptions = describe_listing_images(image_paths, model=model)
                 cleanup_image_files(image_paths)
 
                 # Score it (with image descriptions)
