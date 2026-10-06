@@ -5,6 +5,7 @@ searching for listings, extracting listing data and images, and sending
 messages to sellers. Uses randomized delays to mimic human behaviour.
 """
 
+import json
 import os
 import asyncio
 import random
@@ -323,7 +324,10 @@ async def _open_chat(page: Page):
     if not await btn.count():
         return None
     await btn.click()
-    box = page.locator('div[role="textbox"][contenteditable="true"]').last
+    # Other chat popups (other sellers) stay docked across page loads, so pick the box
+    # labeled "Write to <seller> · <this listing's title>", never just the last one.
+    title = (await page.locator('div[role="main"] h1').first.inner_text()).strip()
+    box = page.locator(f'div[role="textbox"][contenteditable="true"][aria-label$={json.dumps(" · " + title, ensure_ascii=False)}]').last
     try:
         await box.wait_for(state="visible", timeout=15000)
     except Exception:
@@ -356,14 +360,19 @@ async def read_conversation(page: Page) -> list[dict]:
     Returns [] if we've never messaged this seller. Facebook labels each chat bubble
     "Enter, Message sent 4:01 PM by Lucas: <text>", which is what this parses.
     """
-    if not await check_already_messaged(page) or not await _open_chat(page):
+    if not await check_already_messaged(page):
         return []
-    messages = await _parse_bubbles(page)
+    # Scope to this seller's chat popup; other sellers' popups may be docked on the page too.
+    box = await _open_chat(page)
+    if not box:
+        return []
+    chat = box.locator('xpath=ancestor::div[.//*[contains(@aria-label, "Message sent ")]][1]')
+    messages = await _parse_bubbles(chat)
     await dump_html(page, "conversation")
     return messages
 
 
-async def _parse_bubbles(page: Page) -> list[dict]:
+async def _parse_bubbles(page) -> list[dict]:
     """Parse every chat bubble on the page ("Enter, Message sent 4:01 PM by Lucas: <text>"), oldest first."""
     labels = await page.locator('[aria-label*="Message sent "]').evaluate_all("els => els.map(e => e.getAttribute('aria-label'))")
     messages, seen = [], set()

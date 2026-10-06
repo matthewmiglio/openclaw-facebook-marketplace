@@ -153,4 +153,8 @@ Every run checks your Facebook login first and stops early if it has expired. It
 
 ## When Facebook changes its pages
 
-Every run saves the last page of each kind it saw to `data/page_dumps/` (search results, listing, message attempt, conversation, failed login check). When a step stops working, those files show the page's current markup so the selector in `src/browser.py` can be fixed. The folder is gitignored because it holds your logged-in Facebook pages.
+Every run saves the last page of each kind it saw to `data/page_dumps/` (search results, listing, message attempt, conversation, Messenger chat list and chat, failed login check). Each run overwrites the previous file of that kind. When a step stops working, those files show the page's current markup so the selector in `src/browser.py` can be fixed. `CLAUDE.md` tells Claude to do this itself: read the saved page, make simple fixes, and stop and report anything bigger.
+
+To study a page by hand, `poetry run python src/dom_recorder.py` opens the logged-in browser and saves the page to `data/page_dumps/recorder/` every time it changes (once it has been still for 1.5 seconds). Close the window to stop.
+
+The folder is gitignored because it holds your logged-in Facebook pages.
