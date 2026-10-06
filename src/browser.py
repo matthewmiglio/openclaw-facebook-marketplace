@@ -46,6 +46,20 @@ async def login_session():
     print("Session saved.")
 
 
+async def is_logged_in(page: Page, timeout_ms: int = 15000) -> bool:
+    """Open Marketplace and look for your profile picture in the top bar.
+
+    Facebook draws it as an SVG <image> pointing at a profile-photo URL
+    (fbcdn ".../t39.30808-1/..."), which only shows up when logged in.
+    """
+    await page.goto("https://www.facebook.com/marketplace", wait_until="domcontentloaded")
+    try:
+        await page.wait_for_selector('svg image[*|href*="/t39.30808-1/"]', state="attached", timeout=timeout_ms)
+        return True
+    except Exception:
+        return False
+
+
 async def human_delay(min_s=1.0, max_s=3.0):
     """Random delay to look less robotic."""
     await asyncio.sleep(random.uniform(min_s, max_s))
