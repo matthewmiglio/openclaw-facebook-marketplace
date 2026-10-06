@@ -1,13 +1,17 @@
 # Browser session data (contains your FB login)
 data/browser_profile/
 
+# Saved page HTML from runs (your logged-in Facebook pages)
+data/page_dumps/
+
 # SQLite database
 data/*.db
 data/*.db-wal
 data/*.db-shm
 
-# Claude Code
-.claude/
+# Claude Code (personal settings stay local; project skills are shared)
+.claude/*
+!.claude/skills/
 
 # Python
 __pycache__/

@@ -10,7 +10,7 @@ import json
 import random
 import time
 from prompt_parser import parse_prompt
-from browser import launch_browser, is_logged_in,search_marketplace, scroll_for_listings, check_listing_sold, check_already_messaged, extract_listing_data, extract_listing_images, send_marketplace_message, human_delay
+from browser import launch_browser, is_logged_in, dump_html, search_marketplace, scroll_for_listings, check_listing_sold, check_already_messaged, extract_listing_data, extract_listing_images, send_marketplace_message, human_delay
 from scorer import score_listing
 from vision import describe_listing_images, cleanup_image_files
 from messenger import compose_message
@@ -36,7 +36,7 @@ def timestamp():
     return time.strftime("%H:%M:%S")
 
 
-async def run_agent(user_prompt: str, model: str = "mistral"):
+async def run_agent(user_prompt: str, model: str = "haiku"):
     """Run the full agent pipeline for a single user request.
 
     Steps:
@@ -49,8 +49,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
 
     Args:
         user_prompt: The raw request string from the user.
-        model: Model for the parser, scorer, messenger, and (for Claude) vision.
-            An Ollama name like "mistral", or "claude" / "claude:sonnet" for the Claude CLI.
+        model: Claude model for every AI step: "haiku", "sonnet", "opus", or a full model ID.
     """
     run_start = time.time()
     c.summary(f"\n{'='*60}")
@@ -103,6 +102,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
         )
         print(f"[{timestamp()}] Search page loaded in {time.time() - t0:.1f}s")
         print(f"[{timestamp()}] URL: {page.url}")
+        await dump_html(page, "search")
 
         # Step 3: Collect listings
         c.step("\n--- Step 3: Scroll + collect listings ---")
@@ -148,6 +148,7 @@ async def run_agent(user_prompt: str, model: str = "mistral"):
                 await page.goto(href, wait_until="domcontentloaded")
                 await human_delay(1, 2)
                 c.browser(f"Page loaded in {time.time() - t0:.1f}s")
+                await dump_html(page, "listing")
 
                 # Skip if listing is sold
                 if await check_listing_sold(page):

@@ -1,11 +1,9 @@
-"""Single chat entry point that routes to a local Ollama model or the Claude CLI.
+"""Single chat entry point: every AI call goes through the `claude` CLI (your Claude Code login).
 
-Model names starting with "claude" go to the `claude` CLI (your Claude Code
-login): "claude" uses Haiku, "claude:sonnet" / "claude:opus" pick another model.
-Anything else is treated as an Ollama model name.
+`model` is any name the CLI's --model flag takes: "haiku" (default), "sonnet",
+"opus", or a full ID like "claude-opus-5-5".
 
-Returns an Ollama-shaped dict ({"message": {"content": ...}, "eval_count": ...})
-so callers don't care which backend answered.
+Returns {"message": {"content": ...}, "eval_count": <output tokens>}.
 """
 
 import base64
@@ -17,29 +15,14 @@ import subprocess
 import tempfile
 import time
 
-import ollama
-
-DEFAULT_CLAUDE_MODEL = "haiku"
-
-
-def is_claude(model: str) -> bool:
-    return model.startswith("claude")
+DEFAULT_MODEL = "haiku"
 
 
 def chat(model: str, system: str, user: str, json_mode: bool = False, images: list[str] | None = None) -> dict:
     """Send one system + user turn (optionally with image paths) and return the reply."""
-    if not is_claude(model):
-        msg = {"role": "user", "content": user}
-        if images:
-            msg["images"] = images
-        messages = ([{"role": "system", "content": system}] if system else []) + [msg]
-        resp = ollama.chat(model=model, messages=messages, format="json" if json_mode else "")
-        return {"message": {"content": resp["message"]["content"]}, "eval_count": resp.get("eval_count", "?")}
-
-    _, _, alias = model.partition(":")
     if json_mode:
         system += "\n\nRespond with the JSON object only. No code fences, no commentary."
-    text, tokens = _claude_cli(alias or DEFAULT_CLAUDE_MODEL, system, user, images or [])
+    text, tokens = _claude_cli(model or DEFAULT_MODEL, system, user, images or [])
     if json_mode:
         # ponytail: grab the outermost {...}; switch to --json-schema if the model ever wraps it badly
         text = text[text.find("{"): text.rfind("}") + 1]
@@ -97,6 +80,6 @@ def _claude_cli(model: str, system: str, user: str, images: list[str]) -> tuple[
 
 if __name__ == "__main__":
     # Live smoke test against the Claude CLI (costs a fraction of a cent).
-    r = chat("claude", "Return the user's number doubled.", '{"n": 21}', json_mode=True)
+    r = chat(DEFAULT_MODEL, "Return the user's number doubled.", '{"n": 21}', json_mode=True)
     assert 42 in json.loads(r["message"]["content"]).values(), r
     print("ok:", r)

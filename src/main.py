@@ -5,7 +5,8 @@ Supports three modes:
   - ``python main.py <prompt>``     — run a one-shot agent command
   - ``python main.py``              — interactive REPL loop
 
-Add ``--claude`` (or ``--claude=sonnet``) to use the Claude CLI instead of Ollama.
+All AI runs on Claude through the ``claude`` CLI. Add ``--model=sonnet`` (or opus, or a full
+model ID) to use a bigger model than the default Haiku.
 """
 
 import asyncio
@@ -27,12 +28,12 @@ Type your request, or 'quit' to exit.
 
 def main():
     """Parse CLI args and run the appropriate mode (login / one-shot / interactive REPL)."""
-    model = "mistral"
+    model = "haiku"
 
-    # --claude (Haiku) or --claude=sonnet routes all AI calls through the Claude CLI
+    # --model=sonnet / --model=opus / --model=<full model ID> picks the Claude model
     for arg in sys.argv[1:]:
-        if arg == "--claude" or arg.startswith("--claude="):
-            model = "claude" + (":" + arg.split("=", 1)[1] if "=" in arg else "")
+        if arg.startswith("--model="):
+            model = arg.split("=", 1)[1]
             sys.argv.remove(arg)
             break
 

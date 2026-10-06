@@ -46,7 +46,7 @@ The agent should:
 | Layer | Tool | Role |
 |---|---|---|
 | Browser automation | **Playwright** (Python) | Drive a real Chromium session — navigate, click, fill, extract DOM |
-| Reasoning / LLM | **Local model** (LLaMA, Mistral, DeepSeek, etc.) | Parse prompts, score listings, generate messages, handle edge cases |
+| Reasoning / LLM | **Claude** (via the Claude Code CLI) | Parse prompts, score listings, generate messages, handle edge cases |
 | Orchestrator | **Python** CLI app | Agent loop: parse prompt → plan steps → execute → report |
 | Storage | **SQLite** | Track listings, messages sent, seller replies, session history |
 | Interface | **Terminal CLI** | Chat-style prompt input, streaming status output |

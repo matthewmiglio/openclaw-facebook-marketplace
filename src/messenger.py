@@ -1,6 +1,6 @@
 """Compose short, human-sounding buyer messages for Facebook Marketplace listings.
 
-Uses a local Ollama model with strict style rules (no greetings, no sign-offs,
+Uses Claude (via the claude CLI) with strict style rules (no greetings, no sign-offs,
 1-2 sentences max) so the output reads like a real chat message.
 """
 
@@ -33,13 +33,13 @@ Write ONLY the message text, nothing else.
 """
 
 
-def compose_message(listing: dict, message_intent: str, model: str = "mistral") -> str:
-    """Generate a short, casual buyer message for a listing via Ollama.
+def compose_message(listing: dict, message_intent: str, model: str = llm.DEFAULT_MODEL) -> str:
+    """Generate a short, casual buyer message for a listing via Claude.
 
     Args:
         listing: Extracted listing data (needs at least 'title' and 'price').
         message_intent: What the buyer wants to communicate (e.g. "ask if available").
-        model: Ollama model name.
+        model: Claude model name (see llm.py).
 
     Returns:
         The final cleaned-up message string ready to send.

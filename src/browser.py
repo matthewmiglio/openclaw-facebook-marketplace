@@ -8,12 +8,27 @@ messages to sellers. Uses randomized delays to mimic human behaviour.
 import os
 import asyncio
 import random
+import re
 import tempfile
 from playwright.async_api import async_playwright, Page, BrowserContext
 import colors as c
 
 PROFILE_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "browser_profile")
 MARKETPLACE_URL = "https://www.facebook.com/marketplace"
+DUMP_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "page_dumps")
+
+
+async def dump_html(page: Page, name: str):
+    """Save the page's current HTML to data/page_dumps/<name>.html, overwriting the last one.
+
+    These are what to read when a selector stops matching and needs fixing.
+    """
+    try:
+        os.makedirs(DUMP_DIR, exist_ok=True)
+        with open(os.path.join(DUMP_DIR, f"{name}.html"), "w", encoding="utf-8") as f:
+            f.write(f"<!-- {page.url} -->\n" + await page.content())
+    except Exception as e:
+        c.error(f"Could not save page HTML ({name}): {e}")
 
 
 async def launch_browser(headless=False) -> tuple:
@@ -57,6 +72,7 @@ async def is_logged_in(page: Page, timeout_ms: int = 15000) -> bool:
         await page.wait_for_selector('svg image[*|href*="/t39.30808-1/"]', state="attached", timeout=timeout_ms)
         return True
     except Exception:
+        await dump_html(page, "login_failed")
         return False
 
 
@@ -110,18 +126,14 @@ async def check_listing_sold(page: Page) -> bool:
 
 async def check_already_messaged(page: Page) -> bool:
     """Check if the listing page shows a 'Message again' button, meaning we already contacted this seller."""
+    # The page holds several "Message again" copies and the first is hidden, so match only visible ones.
+    again = 'div[role="main"] [aria-label="Message again"]:visible'
     try:
-        # Check for the button with aria-label="Message again"
-        btn = await page.query_selector('div[role="main"] div[aria-label="Message again"]')
-        if btn and await btn.is_visible():
-            return True
-        # Fallback: check for span containing the text
-        span = await page.query_selector('div[role="main"] span:has-text("Message again")')
-        if span and await span.is_visible():
-            return True
+        # Give the seller box a moment to render ("Message again" if contacted, else "Send seller a message")
+        await page.locator(f'{again}, div[role="main"] span:has-text("Send seller a message"):visible').first.wait_for(timeout=8000)
     except Exception:
         pass
-    return False
+    return await page.locator(again).count() > 0
 
 
 async def extract_listing_data(page: Page) -> dict:
@@ -291,6 +303,157 @@ async def check_rate_limit_popup(page: Page) -> bool:
 
 
 async def send_marketplace_message(page: Page, message: str) -> str:
+    """Message the seller of the open listing and save the page HTML as it was afterward.
+
+    A first message goes through the listing's message dialog; if we already have a
+    conversation with this seller, it goes into that chat as a follow-up.
+    Returns: "sent", "failed", or "rate_limited"
+    """
+    if await check_already_messaged(page):
+        result = await _send_followup(page, message)
+    else:
+        result = await _send_marketplace_message(page, message)
+    await dump_html(page, f"message_{result}")
+    return result
+
+
+async def _open_chat(page: Page):
+    """Open the existing chat with this listing's seller via "Message again". Returns its text box, or None."""
+    btn = page.locator('div[role="main"] [aria-label="Message again"]:visible').first
+    if not await btn.count():
+        return None
+    await btn.click()
+    box = page.locator('div[role="textbox"][contenteditable="true"]').last
+    try:
+        await box.wait_for(state="visible", timeout=15000)
+    except Exception:
+        return None
+    await human_delay(2, 3)  # let the message history load
+    return box
+
+
+async def _send_followup(page: Page, message: str) -> str:
+    """Type a follow-up into the existing chat with the seller and press Enter."""
+    c.messenger("Already talking to this seller, sending as a follow-up...")
+    box = await _open_chat(page)
+    if not box:
+        c.messenger("Could not open the existing chat")
+        return "failed"
+    await box.click()
+    await page.keyboard.type(message, delay=30)
+    await human_delay(1, 2)
+    await page.keyboard.press("Enter")
+    await human_delay(2, 3)
+    if await check_rate_limit_popup(page):
+        return "rate_limited"
+    c.messenger("Follow-up sent!")
+    return "sent"
+
+
+async def read_conversation(page: Page) -> list[dict]:
+    """Read the chat with the open listing's seller, oldest first: [{"time", "sender", "text"}].
+
+    Returns [] if we've never messaged this seller. Facebook labels each chat bubble
+    "Enter, Message sent 4:01 PM by Lucas: <text>", which is what this parses.
+    """
+    if not await check_already_messaged(page) or not await _open_chat(page):
+        return []
+    messages = await _parse_bubbles(page)
+    await dump_html(page, "conversation")
+    return messages
+
+
+async def _parse_bubbles(page: Page) -> list[dict]:
+    """Parse every chat bubble on the page ("Enter, Message sent 4:01 PM by Lucas: <text>"), oldest first."""
+    labels = await page.locator('[aria-label*="Message sent "]').evaluate_all("els => els.map(e => e.getAttribute('aria-label'))")
+    messages, seen = [], set()
+    for label in labels:
+        m = re.search(r"Message sent (.+?) by (.+?): (.*)", label, re.S)
+        if m and label not in seen:
+            seen.add(label)
+            messages.append({"time": m.group(1).replace(" ", " "), "sender": m.group(2), "text": m.group(3)})
+    return messages
+
+
+def clean_url(href: str) -> str:
+    """Strip tracking params: https://www.facebook.com/marketplace/item/<id>/"""
+    m = re.search(r"/marketplace/item/(\d+)", href or "")
+    return f"https://www.facebook.com/marketplace/item/{m.group(1)}/" if m else href
+
+
+MESSENGER_URL = "https://www.facebook.com/messages/t/"
+
+
+async def list_marketplace_threads(page: Page, limit: int = 50) -> list[str]:
+    """Open Messenger's Marketplace folder and return chat URLs, newest first.
+
+    Messenger groups all Marketplace chats under one "Marketplace" row in the chat list;
+    clicking it shows the individual chats.
+    """
+    await page.goto(MESSENGER_URL, wait_until="domcontentloaded")
+    grid = page.locator('div[aria-label="Chats"][role="grid"]')
+    await grid.wait_for(timeout=20000)
+    await human_delay(2, 3)
+    # Messenger may show an "Enter your PIN to restore your chats" box over everything. Closing it
+    # asks whether to stop restoring history on this device (an account setting), so leave it up:
+    # the chats load behind it, and a click sent straight to the element gets through.
+    await grid.locator('div[role="row"]').filter(has_text="Marketplace").first.locator('[role="button"]').first.dispatch_event("click")
+    await human_delay(3, 4)
+    await dump_html(page, "messenger_marketplace")
+
+    links = page.locator('div[role="grid"] a[href*="/messages/t/"]')
+    urls = []
+    for _ in range(15):
+        for h in await links.evaluate_all("els => els.map(e => e.href)"):
+            h = h.split("?")[0]
+            if h not in urls:
+                urls.append(h)
+        if len(urls) >= limit or not await links.count():
+            break
+        # More chats load as the list scrolls; stop once a scroll adds nothing
+        before = await links.count()
+        await links.last.scroll_into_view_if_needed()
+        await human_delay(1.5, 2.5)
+        if await links.count() == before:
+            break
+    return urls[:limit]
+
+
+async def read_thread(page: Page, url: str) -> dict:
+    """Open one Messenger chat and return {thread_id, title, listing_url, messages}.
+
+    Scrolls up until no older messages load, so long chats come back whole.
+    """
+    await page.goto(url, wait_until="domcontentloaded")
+    bubbles = page.locator('[aria-label*="Message sent "]')
+    try:
+        await bubbles.first.wait_for(state="attached", timeout=20000)
+    except Exception:
+        pass
+
+    count = -1
+    for _ in range(20):
+        if await bubbles.count() == count:
+            break
+        count = await bubbles.count()
+        try:
+            if count:
+                await bubbles.first.scroll_into_view_if_needed(timeout=5000)
+        except Exception:
+            count = -1  # the bubble re-rendered mid-scroll; count again next pass
+        await human_delay(1, 2)
+
+    heading = page.locator('h3:has-text("Conversation titled")')
+    title = (await heading.first.inner_text()).replace("Conversation titled ", "").strip() if await heading.count() else ""
+    details = page.locator('a[aria-label="See details"][href*="/marketplace/item/"]')
+    listing = clean_url(await details.first.get_attribute("href")) if await details.count() else None
+    m = re.search(r"/messages/t/(\d+)", url)
+    await dump_html(page, "messenger_thread")
+    return {"thread_id": m.group(1) if m else url, "title": title, "listing_url": listing,
+            "messages": await _parse_bubbles(page)}
+
+
+async def _send_marketplace_message(page: Page, message: str) -> str:
     """Click the Message button on a listing page, which opens a dialog, then type and send.
 
     Facebook's flow:

@@ -1,6 +1,6 @@
 """Natural-language prompt parser that converts user requests into structured intents.
 
-Uses a local Ollama model to extract fields like product, price range, location,
+Uses Claude (via the claude CLI) to extract fields like product, price range, location,
 desired action (search / message / both), and exclusions from free-form text.
 """
 
@@ -46,12 +46,12 @@ User: "find PS5 controllers under $50"
 """
 
 
-def parse_prompt(user_prompt: str, model: str = "mistral") -> dict:
-    """Convert a free-form user request into a structured intent dict via Ollama.
+def parse_prompt(user_prompt: str, model: str = llm.DEFAULT_MODEL) -> dict:
+    """Convert a free-form user request into a structured intent dict via Claude.
 
     Args:
         user_prompt: Raw natural-language request from the user.
-        model: Ollama model name to use for parsing.
+        model: Claude model name (see llm.py).
 
     Returns:
         Dict with keys: product, max_price, min_price, location, radius_miles,
@@ -61,16 +61,16 @@ def parse_prompt(user_prompt: str, model: str = "mistral") -> dict:
     c.parser(f"Prompt: \"{user_prompt}\"")
     t0 = time.time()
 
-    # Run ollama in a thread so we can print a live timer while waiting
+    # Run the model call in a thread so we can print a live timer while waiting
     result_holder = {}
 
-    def _call_ollama():
+    def _call_model():
         try:
             result_holder["response"] = llm.chat(model, SYSTEM_PROMPT, user_prompt, json_mode=True)
         except Exception as e:
             result_holder["error"] = e
 
-    thread = threading.Thread(target=_call_ollama)
+    thread = threading.Thread(target=_call_model)
     thread.start()
     while thread.is_alive():
         elapsed = int(time.time() - t0)
@@ -80,12 +80,6 @@ def parse_prompt(user_prompt: str, model: str = "mistral") -> dict:
 
     if "error" in result_holder:
         err = result_holder["error"]
-        if isinstance(err, ConnectionError):
-            raise RuntimeError(
-                f"Could not connect to Ollama. Make sure Ollama is installed and running "
-                f"(https://ollama.com/download), and that the '{model}' model is pulled "
-                f"(`ollama pull {model}`)."
-            ) from err
         raise RuntimeError(f"LLM call failed ({model}): {err}") from err
 
     response = result_holder["response"]

@@ -55,8 +55,52 @@ def _ensure_tables(conn):
             started_at TEXT DEFAULT (datetime('now')),
             summary TEXT
         );
+
+        -- Marketplace chats copied from Messenger by `cli.py sync-messages`
+        CREATE TABLE IF NOT EXISTS conversations (
+            thread_id TEXT PRIMARY KEY,
+            title TEXT,
+            listing_url TEXT,
+            last_synced TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id TEXT REFERENCES conversations(thread_id),
+            sent_time TEXT,  -- as Messenger shows it ("4:01 PM", "Mon 4:01 PM", "Oct 3, 2026, 4:01 PM")
+            sender TEXT,
+            text TEXT,
+            first_seen TEXT DEFAULT (datetime('now')),
+            UNIQUE(thread_id, sent_time, sender, text)
+        );
     """)
     conn.commit()
+
+
+def save_conversation(conn, thread_id: str, title: str, listing_url: str, messages: list[dict]) -> int:
+    """Upsert a chat and add any messages not stored yet. Returns how many messages were new."""
+    conn.execute("""
+        INSERT INTO conversations (thread_id, title, listing_url, last_synced) VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(thread_id) DO UPDATE SET title=excluded.title,
+            listing_url=COALESCE(excluded.listing_url, listing_url), last_synced=excluded.last_synced
+    """, (thread_id, title, listing_url))
+    before = conn.total_changes
+    conn.executemany("INSERT OR IGNORE INTO chat_messages (thread_id, sent_time, sender, text) VALUES (?, ?, ?, ?)",
+                     [(thread_id, m["time"], m["sender"], m["text"]) for m in messages])
+    new = conn.total_changes - before
+    conn.commit()
+    return new
+
+
+def find_listing(conn, name: str):
+    """Find listings or chats whose title contains `name` (case-insensitive). Returns [{title, url, source}]."""
+    like = f"%{name}%"
+    rows = conn.execute("""
+        SELECT title, listing_url AS url, 'chat' AS source FROM conversations WHERE title LIKE ? AND listing_url IS NOT NULL
+        UNION
+        SELECT title, listing_url, 'search' FROM listings WHERE title LIKE ?
+    """, (like, like)).fetchall()
+    return [dict(r) for r in rows]
 
 
 def save_listing(conn, listing: dict) -> int:

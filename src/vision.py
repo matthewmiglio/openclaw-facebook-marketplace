@@ -1,6 +1,6 @@
 """Vision module for analysing listing product photos.
 
-Uses the Moondream model (via Ollama) to generate text descriptions of
+Uses Claude (via the claude CLI) to generate text descriptions of
 listing images, which are then fed into the scorer to catch mismatches
 between what a listing claims and what the photos actually show.
 """
@@ -11,30 +11,20 @@ import time
 import llm
 import colors as c
 
-VISION_MODEL = "moondream"
 PROMPT = "What is the main product or item in this image?"
 
 
-def describe_image(image_path: str, model: str = VISION_MODEL) -> str:
-    """Send a single image to the vision model and get a product description."""
-    # Claude defaults to markdown; ask for one plain sentence so the paragraph trim below keeps the content
-    system = "Answer in one or two plain sentences. No markdown, no headings." if llm.is_claude(model) else ""
-    response = llm.chat(model, system, PROMPT, images=[image_path])
-    text = response["message"]["content"].strip()
-    # Moondream sometimes hallucinated follow-up Q&A — keep only the first paragraph
-    text = text.split("\n\n")[0].strip()
-    return text
+def describe_image(image_path: str, model: str = llm.DEFAULT_MODEL) -> str:
+    """Send a single image to the model and get a product description."""
+    # Claude defaults to markdown; ask for plain sentences and keep only the first paragraph
+    response = llm.chat(model, "Answer in one or two plain sentences. No markdown, no headings.", PROMPT, images=[image_path])
+    return response["message"]["content"].strip().split("\n\n")[0].strip()
 
 
-def describe_listing_images(image_paths: list[str], model: str = VISION_MODEL) -> list[str]:
-    """Describe all images for a listing. Returns list of descriptions.
-
-    Claude models handle images themselves; any Ollama text model falls back to moondream.
-    """
+def describe_listing_images(image_paths: list[str], model: str = llm.DEFAULT_MODEL) -> list[str]:
+    """Describe all images for a listing. Returns list of descriptions."""
     if not image_paths:
         return []
-    if not llm.is_claude(model):
-        model = VISION_MODEL
 
     c.vision(f"Analyzing {len(image_paths)} images with {model}...")
     t0 = time.time()
