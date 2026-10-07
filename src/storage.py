@@ -85,8 +85,12 @@ def save_conversation(conn, thread_id: str, title: str, listing_url: str, messag
             listing_url=COALESCE(excluded.listing_url, listing_url), last_synced=excluded.last_synced
     """, (thread_id, title, listing_url))
     before = conn.total_changes
-    conn.executemany("INSERT OR IGNORE INTO chat_messages (thread_id, sent_time, sender, text) VALUES (?, ?, ?, ?)",
-                     [(thread_id, m["time"], m["sender"], m["text"]) for m in messages])
+    # Messenger rewrites times as messages age ("4:01 PM" becomes "Tuesday 4:01pm"), so match on
+    # sender + text only. ponytail: a repeated identical message ("ok") is stored once.
+    conn.executemany("""
+        INSERT INTO chat_messages (thread_id, sent_time, sender, text) SELECT ?, ?, ?, ?
+        WHERE NOT EXISTS (SELECT 1 FROM chat_messages WHERE thread_id = ? AND sender = ? AND text = ?)
+    """, [(thread_id, m["time"], m["sender"], m["text"], thread_id, m["sender"], m["text"]) for m in messages])
     new = conn.total_changes - before
     conn.commit()
     return new
