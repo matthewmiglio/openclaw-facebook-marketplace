@@ -39,6 +39,9 @@ async def launch_browser(headless=False) -> tuple:
     context = await pw.chromium.launch_persistent_context(
         PROFILE_DIR,
         headless=headless,
+        # The default headless build (chromium-headless-shell) can't read this profile and
+        # crashes; the full Chromium build in headless mode can.
+        channel="chromium",
         viewport={"width": 1280, "height": 900},
         args=["--disable-blink-features=AutomationControlled"],
     )
@@ -403,9 +406,9 @@ async def list_marketplace_threads(page: Page, limit: int = 50) -> list[str]:
     grid = page.locator('div[aria-label="Chats"][role="grid"]')
     await grid.wait_for(timeout=20000)
     await human_delay(2, 3)
-    # Messenger may show an "Enter your PIN to restore your chats" box over everything. Closing it
-    # asks whether to stop restoring history on this device (an account setting), so leave it up:
-    # the chats load behind it, and a click sent straight to the element gets through.
+    # The "Enter your PIN to restore your chats" box was dismissed on this profile (Oct 6 2026,
+    # "Don't restore messages"). If it ever comes back, a click sent straight to the element
+    # still gets through it.
     await grid.locator('div[role="row"]').filter(has_text="Marketplace").first.locator('[role="button"]').first.dispatch_event("click")
     await human_delay(3, 4)
     await dump_html(page, "messenger_marketplace")

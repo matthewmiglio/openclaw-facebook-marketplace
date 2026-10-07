@@ -118,7 +118,7 @@ python src/cli.py sync-messages          # copy recent Marketplace chats into th
 python src/cli.py lookup "<name>"        # find a listing or chat by title (database only, no browser)
 ```
 
-Only one command can run at a time, because your Facebook profile can only be open in one browser window.
+Only one command can run at a time, because your Facebook profile can only be open in one browser window. The commands run the browser hidden (headless), except `message`, which opens a visible window. Set `MP_HEADED=1` to watch any command.
 
 ### Standalone agent
 

@@ -5,7 +5,7 @@ description: Search Facebook Marketplace, read listings (details and photos), me
 
 # Facebook Marketplace
 
-`src/cli.py` drives a real Chromium window with the user's saved Facebook login. Each command opens the browser, does one thing, closes it, and prints one JSON result on stdout (progress logs go to stderr, so add `2>/dev/null` to keep output clean).
+`src/cli.py` drives a real Chromium browser with the user's saved Facebook login, hidden (headless) for every command except `message`. Set `MP_HEADED=1` to show the window. Each command opens the browser, does one thing, closes it, and prints one JSON result on stdout (progress logs go to stderr, so add `2>/dev/null` to keep output clean).
 
 Run from the repo root with `PYTHONIOENCODING=utf-8 python src/cli.py ...`.
 

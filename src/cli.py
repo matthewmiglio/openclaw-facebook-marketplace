@@ -18,6 +18,7 @@ import argparse
 import asyncio
 import contextlib
 import json
+import os
 import re
 import sys
 
@@ -97,7 +98,10 @@ async def cmd_sync(page, a):
 
 
 async def run(a):
-    pw, context, page = await launch_browser(headless=False)
+    # Headless by default. `message` stays visible because sending hasn't been tested headless;
+    # set MP_HEADED=1 to watch any command.
+    headless = a.cmd != "message" and os.environ.get("MP_HEADED") != "1"
+    pw, context, page = await launch_browser(headless=headless)
     try:
         if not await is_logged_in(page):
             return {"error": "not_logged_in", "fix": "Run `python src/main.py login`, log in, close the window."}
