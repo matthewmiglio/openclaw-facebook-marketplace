@@ -30,6 +30,6 @@ Use it to answer follow-up questions (what did Noor say, which sellers haven't r
 
 ## Notes
 
-- Messenger may show an "Enter your PIN to restore your chats" box. **Don't close it**: closing it asks whether to stop restoring chat history on this device, which is an account setting. Marketplace chats load behind it and the sync works around it.
+- The "Enter your PIN to restore your chats" box was dismissed in this browser (the user chose "Don't restore messages"). A small "Chat history is missing" banner stays in the chat list; it blocks nothing. If the full box comes back, the sync works around it.
 - The sync only sees chats in Messenger's Marketplace folder in this browser. Chats started on another device before this browser was set up may be missing until the user enters their PIN here themselves.
 - If the sync returns no chats, read `data/page_dumps/messenger_marketplace.html` to see what the page looked like and fix `list_marketplace_threads` in `src/browser.py`.
